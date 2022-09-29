@@ -1,4 +1,5 @@
-Horatio Rugen, half-ogre Swashbuckler  
+# Horatio Rugen, half-ogre Swashbuckler  
+
 ST 15 (striking 17) DX 15 IQ 9 HT 14, HP 15, DR 2 (light cloth armor), Speed 7.25, Move 7  
 Dodge 11+DB Parry 15+DB with own rapier Block 11+DB  
 Extra Attack, Striking ST +2, Weapon Master (Rapier and Main-gauche)  
