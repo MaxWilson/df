@@ -1,17 +1,17 @@
 # Horatio Rugen, half-ogre Swashbuckler  
 
-ST 15 (striking 17) DX 15 IQ 9 HT 14, HP 15, DR 2 (light cloth armor), Speed 7.25, Move 7  
+ST 15 (striking 17) DX 15 IQ 9 HT 14, HP 17, DR 2 (light cloth armor), Speed 7.25, Move 7  
 Dodge 11+DB Parry 15+DB with own rapier Block 11+DB  
-Extra Attack, Striking ST +2, Weapon Master (Rapier and Main-gauche)  
-Rapier-19  
+Extra Attack, Striking ST +2, Weapon Bond, HP +2  
+Rapier-20  
 Main-gauche-16  
 Night Vision 5  
 Sling-13  
 Shield-15  
 Kiai-12  
 
-Rapier 3 lb. $1000 skill 20, 3d6+5 cut or 1d+5 imp  
-Balanced Fine Orichalcum large knife 1 lb. $1520, 3d6+1 cut or 1d+5 imp  
+Rapier 3 lb. $1000 skill 21, 3d6+5 cut or 1d+5 imp  
+Balanced Fine Orichalcum large knife 1 lb. $1520, 3d6-2 cut or 1d+3 imp  
 Leather armor 18 lb. $150  
 Medium shield 15 lb. $60  
 Bandoleer 1 lb. $60  
