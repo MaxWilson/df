@@ -1,5 +1,5 @@
 ## Horatio Rugen (Half-ogre Swashbuckler)  
-Rapier-19, Main-gauche-16 (17) (enhanced parry, Weapon Bond), Night Vision 5, Kiai-13, Shield-15, Sling-13.
+Rapier-19, Main-gauche-16 (17) (enhanced parry, Weapon Bond), Night Vision 5, Kiai-12, Shield-15, Sling-13.
 
 ## Elven Bard (Merchant/Dilettante)
 Wealthy Elven Bard with Bardic Talent 3, Song of Humiliation, and ER 2.
