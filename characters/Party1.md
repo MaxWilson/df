@@ -1,8 +1,19 @@
 ## Horatio Rugen (Half-ogre Swashbuckler)  
-## Elven Bard
+Rapier-19, Main-gauche-16 (17) (enhanced parry, Weapon Bond), Night Vision 5, Kiai-13, Shield-15, Sling-13.
+
+## Elven Bard (Merchant/Dilettante)
+Wealthy Elven Bard with Bardic Talent 3, Song of Humiliation, and ER 2.
+Concussion cannot be acquired immediately but is a high priority. Resist Sound is a high priority. Mind Control desired soon as well as more Move and more ER.
+
 ## Cleric
+PI 6, ER 5. Sanctuary, Healing Slumber, Stop Paralysis, Bless are all top priorities. Other healing spells greatly desired, as well as stuff like Resist Cold/Resist Lightning/Resist Fire/Hide Thoughts/Shield/Bravery/Flaming Weapon.
+
 ## Druid
+Create Animal-20 is a top priority; Beast Possession is important for recon.
+
 ## Illusionist
+Great Haste, Blink Other, Initiative, Wizard Eye, and Phantom-25 are high priorities. Even before we can afford constant Phantoms, we can afford constant Initiative-enhanced Complex Illusions as decoys and scouts.
+
 ## Ranged specialist
 Scout or Throwing Art martial artist  
 Scout is better with traps and at extreme range--is this important?  
