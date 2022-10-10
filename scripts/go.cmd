@@ -1,0 +1,1 @@
+fsi --exec RandomGeneration.fsx
