@@ -9,13 +9,14 @@ let traits =    [   "ST", 10
                     "Luck", 15
                     "HP", 2
                     ]
+let traitsMap = traits
                 |> Map.ofList
 let r = System.Random()
 let chooseRandom (lst: _ list) =
     lst[r.Next lst.Length]
 
 let costOf trait' =
-    match traits |> Map.tryFind trait' with
+    match traitsMap |> Map.tryFind trait' with
     | Some v -> v
     | _ -> failwith $"{trait'} has no assigned cost, please add one and then retry."
 
@@ -28,7 +29,7 @@ totalCost ["ST"; "ST"; "DX"]
 let validOptions budget choices =
     let cost = totalCost choices
     let remainingBudget = budget - cost
-    traits.Keys |> Seq.filter (fun c -> traits[c] < remainingBudget) |> List.ofSeq
+    traitsMap.Keys |> Seq.filter (fun c -> traitsMap[c] < remainingBudget) |> List.ofSeq
 
 let construct budget =
     let rec recur choices =
@@ -41,8 +42,12 @@ let construct budget =
             | [] -> choices
             | affordableChoices ->
                 recur ((affordableChoices |> chooseRandom)::choices)
-    recur [] |> List.countBy id |> List.sortBy fst
+    recur []
+let format choices =
+    let order = traits |> List.mapi (fun ix (name, _) -> name, ix) |> Map.ofList
+    choices |> List.countBy id |> List.sortBy (fst >> (fun name -> order[name]))
+let prettyPrint choices = format choices |> List.iter (printfn "%A")
 
 totalCost []
 validOptions 250 []
-construct 250
+construct 250 |> prettyPrint
