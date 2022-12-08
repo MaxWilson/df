@@ -1,0 +1,13 @@
+Random Delver Table for http://forums.sjgames.com/showthread.php?t=187156:
+
+Barbarian w/ Extra Attack, Tough Skin 3, Striking ST 1, Weapon Bond, Greatsword-18
+Elven Bard w/ Resist Sound, Concussion, Song of Command, Move +1, [Resist Sound-15, Purify Air, Create Air, Shape Air, Walk On Air], Charm-14
+Cleric (Always has warrior buddy) Power Investiture 6, ER 5, Major Healing, Healing Slumber
+Druid (Counts as warrior buddy) PI 6, ER 3, Spark Storm, Create Animal (Guard Dog, Rat Swarm, DF Bear)
+Knight, Extra Attack, Weapon Master, Greatsword-21, Luck
+Holy Warrior, Faith Healing, Combat Reflexes, Luck, Broadsword-16, Shield-16
+Martial Artist, Mantis Strike, Dragon Skin, Throwing Art-24, Karate-16, Knife-18
+Elf Scout, Move +4 (12), Strongbow, Weapon Bond, Stealth-17 [2]
+Half-ogre Swashbuckler, Striking ST 2, Basic Speed +0.75, Move +3 (11)
+Thief, Weapon Master (knives), Move +1, Expert Backstabbing 2, Night Vision 1 OR Gizmos 3, Move +2 (9), Night Vision 5
+Wizard (Always has warrior buddy), Magery 6, Complex Illusion-19, Phantom-18, Invisibility-20, Initiative/Independence-19, Resist Sound-19, Concussion-19, Create Fire-19, Haste-20, Shield-20, Blink Other-19, Glue-19, Great Haste-18
