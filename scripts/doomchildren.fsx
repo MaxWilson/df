@@ -33,8 +33,9 @@ type CreatureStatus = {
     status: Status
     }
 type Creature = { name: string; id: Id; originalStats: CreatureStats; mutable status: CreatureStatus; mutable roundInfo: RoundInfo }
-type World(map) =
+type World(map, log) =
     let mutable denizens: Map<Id, Creature> = map
+    let mutable log : string list = log
     let addCreature(name, stats) =
         let rec getId candidate counter =
             if denizens.ContainsKey candidate then getId (sprintf "%s%d" name counter) (counter + 1)
@@ -43,6 +44,9 @@ type World(map) =
         let creature = { name = name; id = id; originalStats = stats; status = { stats = stats; status = Ok }; roundInfo = RoundInfo.fresh }
         denizens <- denizens |> Map.add id creature
         denizens[id]
+    member this.Item with get id = denizens[id]
+    member this.getLog() = log
+    member this.remember (msg: string) = log <- msg :: log
     member this.getDenizens() = denizens
     member this.add(name, stats) = addCreature(name, stats)
     member this.add(name, ?st, ?hp, ?fp, ?dr, ?damage) =
@@ -56,5 +60,15 @@ type World(map) =
             damage = either damage (roll 1 -1, Crushing)
             }
         addCreature(name, stats)
-let world = World(Map.empty)
+let world = World(Map.empty, [])
+type Actions(world: World) =
+    member this.attack (src:string) (target:string) =
+        let src = world[src]
+        let target = world[target]
+        world.remember $"{src.id} attacks {target.id}"
+let a = Actions(world)
 world.add("Doomchild", st=12).id
+world.add("Doomchild", st=12).id
+a.attack "Doomchild" "Doomchild2"
+a.attack "Doomchild3" "Doomchild2"
+world.getLog()
