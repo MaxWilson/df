@@ -14,15 +14,35 @@ type RoundInfo = {
 type Condition = MentalStun | PhysicalStun | Unconscious | Dead
 type Status = Condition list
 let Ok = []
+[<StructuredFormatDisplay("{StringRep}")>]
 type Roll = { n:int; d:int; bonus: int }
     with
     static member d6(n) = { n = n; d = 6; bonus = 0 }
     static member roll n plus = { n = n; d = 6; bonus = plus }
+    static member create(n,?d,?plus) = { n = n; d = defaultArg d 6; bonus = defaultArg plus 0 }
     member this.throw = ([for _ in 1..this.n -> 1 + rand.Next(this.d) ] |> List.sum) + this.bonus
+    member this.plus x = { this with bonus = this.bonus + x }
+    member this.StringRep = this.ToString()
+    override this.ToString() =
+        match this.n, this.d, this.bonus with
+        | n, 6, 0 -> $"{n}d"
+        | n, 6, v when v < 0 -> $"{n}d-{-v}"
+        | n, 6, plus -> $"{n}d+{plus}"
+        | n, d, 0 -> "${n}d{d}"
+        | n, d, v when v < 0 -> "${n}d{d}-{-plus}"
+        | n, d, plus -> "${n}d{d}+{plus}"
 open type Roll
 
 module Damage =
     type DamageType = Cutting | Impaling | Crushing
+    let thr st =
+        if st <= 14 then roll 1 (-(14-st)/2)
+        else roll ((st - 3)/8) (((st - 3)/2 % 4) - 1) // slightly inaccurate over ST 50 but who cares, this is a better house rule anyway
+    let sw st =
+        if st < 10 then roll 1 (-(12-st)/2)
+        elif st <= 27 then roll ((st - 5)/4) (((st - 5) % 4) - 1)
+        else roll ((22 + (st - 27)/2)/4) (((22 + (st - 27)/2) % 4) - 1) // inaccurate at ST 45+ but who cares, this is a better house rule anyway
+
 open Damage
 type Mod =
     | StrikingST of int
@@ -122,3 +142,4 @@ world["Doomchild2"].status.status
 
 world["Doomchild2"] |> kill
 world["Doomchild2"].status.status
+
