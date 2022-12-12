@@ -345,6 +345,15 @@ module Actions =
     let miss src target weapon =
         let with1 = match weapon.description with Some descr -> $" with {descr}" | None -> ""
         world.remember $"{src.id} missed {target.id}{with1}!"
+    let startTurn (src: string) =
+        let src = world[src]
+        if src |> checkCondition Unconscious |> not && src.current.stats.hp < 0 then
+            match loggedAttempt src.id "stay conscious" src.current.stats.ht with
+            | CritSuccess | Success -> ()
+            | Fail | CritFail ->
+                src |> addCondition Unconscious |> ignore
+                world.remember $"{src.id} falls unconscious"
+        src.roundInfo <- RoundInfo.fresh
     let endTurn (src: string) =
         let src = world[src]
         if src |> checkCondition PhysicalStun then
@@ -407,6 +416,7 @@ let doRound() =
                 | None -> () // victory!
                 | Some target ->
                     attack src.id target.id None
+                    printfn ""
             src.id |> endTurn
 let fightUntilVictory() =
     let mutable round = 1
