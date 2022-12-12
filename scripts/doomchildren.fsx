@@ -97,6 +97,7 @@ type Mod =
     | StrikingST of int
     | Berserk of int
     | CombatReflexes
+    | ExtraAttack of int
 type DamageClass = Swing | Thrust
 type ReadiedWeapon = {
     description: string option
@@ -419,12 +420,13 @@ let doRound() =
             if src |> checkCondition PhysicalStun then
                 world.remember $"{id} is stunned and does nothing"
             else
-                let team = src.current.stats.team
-                match world.getDenizens() |> Map.tryPick (fun _ target -> if isActive target && target.current.stats.team <> team then Some target else None) with
-                | None -> () // victory!
-                | Some target ->
-                    attack src.id target.id None
-                    world.remember ""
+                for _ in 1..(src.current.stats.mods |> Seq.tryPick (function ExtraAttack n -> n + 1 |> Some | _ -> None) |> Option.defaultValue 1) do
+                    let team = src.current.stats.team
+                    match world.getDenizens() |> Map.tryPick (fun _ target -> if isActive target && target.current.stats.team <> team then Some target else None) with
+                    | None -> () // victory!
+                    | Some target ->
+                        attack src.id target.id None
+                        world.remember ""
             src.id |> endTurn
 let fightUntilVictory() =
     let mutable round = 1
@@ -438,6 +440,6 @@ let fightUntilVictory() =
 world.clearAll()
 for _ in 1..3 do
     world.add("Doomchild", team="blue", st=8, dx=18, speed = 7, readiedWeapon = largeKnife 0, mods=[Berserk 12; StrikingST +10]) |> lf
-world.add("Barbarian", team="red", st=17, dx=13, ht=13, hp=22, speed = 6, readiedWeapon = duelingGlaive +6, dr = (function Eye -> 0 | Skull -> 8 | _ -> 6)) |> lf
+world.add("Barbarian", team="red", st=17, dx=13, ht=13, hp=22, speed = 6, readiedWeapon = duelingGlaive +6, mods = [ExtraAttack 1], dr = (function Eye -> 0 | Skull -> 8 | _ -> 6)) |> lf
 fightUntilVictory()
 String.Join("\n", world.getLog() |> List.rev) |> TextCopy.ClipboardService.SetText
