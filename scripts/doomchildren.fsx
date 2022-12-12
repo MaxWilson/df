@@ -72,7 +72,7 @@ type Location = Torso | Skull | Eye | Arm of Side | Leg of Side | Hand of Side |
         | Arm _ | Leg _ -> -2
         | Face | Neck -> -5
         | Torso -> 0
-type Condition = MentalStun | PhysicalStun | Unconscious | Dead | Prone | Lost of Location // prone is technically a posture not a condition, but we'll leave posture as TODO for now
+type Condition = Dead | Unconscious | MentalStun | PhysicalStun | Prone | Lost of Location // prone is technically a posture not a condition, but we'll leave posture as TODO for now
 type Status = Condition list
 module Damage =
     type DamageType = Cutting | Impaling | Crushing | Piercing | Burning
@@ -154,9 +154,11 @@ let updateStatus f (c:Creature) =
 let addCondition cond c =
     match cond with
     | Lost (Arm Right | Hand Right) -> c |> updateStats (fun stats -> { stats with readiedWeapon = unarmedStrike 0 } )
+    | Lost (Foot _ | Leg _) -> c |> updateStatus (List.append [Prone])
     | _ -> c
-    |> updateStatus (List.append [cond])
+    |> updateStatus (List.append [cond] >> List.distinct >> List.sort)
 let checkCondition cond (c: Creature) = c.current.status |> List.contains cond
+let checkConditionf predicate (c: Creature) = c.current.status |> List.exists predicate
 let checkConditions conditions (c: Creature) = conditions |> List.exists (flip List.contains c.current.status)
 let checkMod mod1 (c: Creature) = c.current.stats.mods |> List.contains mod1
 let checkModf predicate (c: Creature) = c.current.stats.mods |> List.exists predicate
@@ -435,11 +437,11 @@ let doRound() =
 
                             if src.current.stats.team = "red" then
                                 // if any targets still have arms, attack them first
-                                let lostHand = checkConditions [Lost (Arm Right); Lost (Hand Right)]
-                                match targets |> List.sortByDescending (fun t -> t |> lostHand |> not, t.current.stats.hp) with
+                                let lostLimb = checkConditionf (function Lost (Arm _ | Hand _ | Leg _ | Foot _) -> true | _ -> false)
+                                match targets |> List.sortByDescending (fun t -> t |> lostLimb |> not, t.current.stats.hp) with
                                 | target::_ ->
                                     // barbarian only attacks torso
-                                    if target |> lostHand then
+                                    if target |> lostLimb then
                                         attack src.id target.id 4 (Some Torso)
                                     else
                                         attack src.id target.id 3 (Some (Arm Right))
