@@ -407,9 +407,9 @@ let lf _ = printfn ""
 let isActive c = c |> checkConditions [Dead; Unconscious] |> not
 let printWorld() =
     for KeyValue(k,v) in world.getDenizens() |> List.ofSeq do
-        if (not << isActive) v then printf "-"
+        let activeFlag = if isActive v then "" else "-"
         let status = if v.current.status = Ok then "OK" else String.Join(", ", v.current.status |> List.map (sprintf "%A"))
-        world.remember $"{k} [{v.current.stats.team}]: HP {v.current.stats.hp}/{v.originalStats.hp}, {status}"
+        world.remember $"{activeFlag}{k} [{v.current.stats.team}]: HP {v.current.stats.hp}/{v.originalStats.hp}, {status}"
     world.remember  "\n"
 let newRound roundNumber =
     sprintf "\n=====================\nRound %d" roundNumber |> world.remember
@@ -420,13 +420,15 @@ let doRound() =
             if src |> checkCondition PhysicalStun then
                 world.remember $"{id} is stunned and does nothing"
             else
-                for _ in 1..(src.current.stats.mods |> Seq.tryPick (function ExtraAttack n -> n + 1 |> Some | _ -> None) |> Option.defaultValue 1) do
-                    let team = src.current.stats.team
-                    match world.getDenizens() |> Map.tryPick (fun _ target -> if isActive target && target.current.stats.team <> team then Some target else None) with
-                    | None -> () // victory!
-                    | Some target ->
-                        attack src.id target.id None
-                        world.remember ""
+                startTurn src.id
+                if src |> isActive then
+                    for _ in 1..(src.current.stats.mods |> Seq.tryPick (function ExtraAttack n -> n + 1 |> Some | _ -> None) |> Option.defaultValue 1) do
+                        let team = src.current.stats.team
+                        match world.getDenizens() |> Map.tryPick (fun _ target -> if isActive target && target.current.stats.team <> team then Some target else None) with
+                        | None -> () // victory!
+                        | Some target ->
+                            attack src.id target.id None
+                            world.remember ""
             src.id |> endTurn
 let fightUntilVictory() =
     let mutable round = 1
