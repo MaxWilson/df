@@ -430,7 +430,7 @@ let fightUntilVictory() =
 world.clearAll()
 for _ in 1..3 do
     world.add("Doomchild", team="blue", st=8, dx=18, speed = 7, readiedWeapon = largeKnife 0, mods=[Berserk 12; StrikingST +10]) |> lf
-world.add("Barbarian", team="red", st=17, dx=13, ht=13, speed = 6, readiedWeapon = duelingGlaive +6, dr = (function Eye -> 0 | Skull -> 8 | _ -> 6)) |> lf
+world.add("Barbarian", team="red", st=17, dx=13, ht=13, hp=22, speed = 6, readiedWeapon = duelingGlaive +6, dr = (function Eye -> 0 | Skull -> 8 | _ -> 6)) |> lf
 fightUntilVictory()
 newRound 0
 world.getLog() |> List.rev
