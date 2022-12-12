@@ -127,6 +127,7 @@ and CreatureStats = {
     ht: int
     hp: int
     fp: int
+    db: int
     speed: float
     dr: Location -> int
     mods: Mod list
@@ -154,6 +155,7 @@ let updateStatus f (c:Creature) =
 let addCondition cond c =
     match cond with
     | Lost (Arm Right | Hand Right) -> c |> updateStats (fun stats -> { stats with readiedWeapon = unarmedStrike 0 } )
+    | Lost (Arm Left) -> c |> updateStats (fun stats -> { stats with db = 0 } ) // lose shield if any
     | Lost (Foot _ | Leg _) -> c |> updateStatus (List.append [Prone])
     | _ -> c
     |> updateStatus (List.append [cond] >> List.distinct >> List.sort)
@@ -193,7 +195,7 @@ type World(map, log, ?silent) =
     member this.clearDeadOrUnconscious() =
         denizens <- denizens |> Map.filter (fun k v -> v |> checkConditions [Dead; Unconscious] |> not)
     member this.add(name, stats) = addCreature(name, stats)
-    member this.add(name, ?team, ?st, ?dx, ?iq, ?ht, ?hp, ?fp, ?speed, ?dr, ?mods, ?attackSkill, ?readiedWeapon, ?damage, ?damageType) =
+    member this.add(name, ?team, ?st, ?dx, ?iq, ?ht, ?hp, ?fp, ?speed, ?db, ?dr, ?mods, ?attackSkill, ?readiedWeapon, ?damage, ?damageType) =
         let either = defaultArg
         let st = either st 10
         let dx = either dx 10
@@ -207,6 +209,7 @@ type World(map, log, ?silent) =
             hp = either hp st
             fp = either fp 10
             speed = either speed ((float dx + float ht)/4.)
+            db = either db 0
             dr = either dr (function Skull -> 2 | _ -> 0)
             readiedWeapon = either readiedWeapon (ReadiedWeapon.create((fun stats -> stats.dx), either damage (d6 1), either damageType Crushing))
             mods = either mods []
@@ -328,6 +331,7 @@ module Actions =
         damage target location cappedInjury cripples.IsSome
     let defend src target penalty =
         let t = target.current.stats
+        let db = target.current.stats.db
         let hasMod c = t.mods |> List.contains c
         let cr = if hasMod CombatReflexes then +1 else 0
         let retreat = defaultArg target.roundInfo.retreatedFrom src.id = src.id
@@ -340,8 +344,8 @@ module Actions =
                 + penalty
 
             let adjustDodge dodge = if (float t.hp < float target.originalStats.hp / 3.) then dodge / 2 else dodge
-            let parry = penalties + (t.readiedWeapon.skill t / 2) + 3 + cr + (if retreat then +1 else 0) + (target.roundInfo.parries * -4)
-            let dodge = penalties + (((int t.speed)) + 3 + cr |> adjustDodge) + (if retreat then +3 else 0)
+            let parry = db + penalties + (t.readiedWeapon.skill t / 2) + 3 + cr + (if retreat then +1 else 0) + (target.roundInfo.parries * -4)
+            let dodge = db + penalties + (((int t.speed)) + 3 + cr |> adjustDodge) + (if retreat then +3 else 0)
             if retreat then
                 world.remember $"{target.id} retreats!"
                 target.roundInfo <- { target.roundInfo with retreatedFrom = Some src.id }
@@ -462,6 +466,6 @@ let fightUntilVictory() =
 world.clearAll()
 for _ in 1..3 do
     world.add("Doomchild", team="blue", st=8, dx=18, speed = 7, readiedWeapon = largeKnife 0, mods=[Berserk 12; StrikingST +10]) |> lf
-world.add("Barbarian", team="red", st=17, dx=13, ht=13, hp=22, speed = 6, readiedWeapon = duelingGlaive +6, mods = [ExtraAttack 1; HighPainThreshold], dr = (function Eye -> 0 | Skull -> 8 | _ -> 6)) |> lf
+world.add("Barbarian", team="red", st=17, dx=13, ht=13, hp=22, speed = 6, db = 2, readiedWeapon = duelingGlaive +6, mods = [ExtraAttack 1; HighPainThreshold], dr = (function Eye -> 0 | Skull -> 8 | _ -> 6)) |> lf
 fightUntilVictory()
 String.Join("\n", world.getLog() |> List.rev) |> TextCopy.ClipboardService.SetText
