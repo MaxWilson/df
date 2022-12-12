@@ -347,18 +347,14 @@ module Actions =
                 target.roundInfo <- { target.roundInfo with parries = target.roundInfo.parries + 1 }
                 match loggedAttempt target.id "parry" parry with
                 | Success | CritSuccess ->
-                    world.remember $"{target.id} parries successfully!"
                     true
                 | Fail | CritFail ->
-                    world.remember $"{target.id} tries to parry but misses!"
                     false
             else
                 match loggedAttempt target.id "dodge" dodge with
                 | Success | CritSuccess ->
-                    world.remember $"{target.id} dodges successfully!"
                     true
                 | Fail | CritFail ->
-                    world.remember $"{target.id} tries to dodge but misses!"
                     false
     let miss src target weapon =
         let with1 = match weapon.description with Some descr -> $" with {descr}" | None -> ""
@@ -452,7 +448,6 @@ let doRound() =
                                 attack src.id targets.Head.id 0 None
                             world.remember ""
             src.id |> endTurn
-[true, 2; false, 2; true, 1] |> List.sortDescending
 let fightUntilVictory() =
     let mutable round = 1
     while (world.getDenizens().Values |> Seq.filter isActive |> Seq.groupBy (fun c -> c.current.stats.team) |> Seq.length) > 1 do
