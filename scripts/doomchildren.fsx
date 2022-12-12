@@ -139,13 +139,20 @@ type CreatureStatus = {
     status: Status
     }
 type Creature = { name: string; id: Id; originalStats: CreatureStats; mutable current: CreatureStatus; mutable roundInfo: RoundInfo }
+let largeKnife skillBonus = ReadiedWeapon.create((fun stats -> stats.dx + skillBonus), "large knife", Swing, -2, Cutting)
+let unarmedStrike skillBonus = ReadiedWeapon.create((fun stats -> stats.dx + skillBonus), "unarmed strike", Thrust, -1, Crushing)
+let duelingGlaive skillBonus = ReadiedWeapon.create((fun stats -> stats.dx + skillBonus), "dueling glaive", Swing, +2, Cutting)
 let updateStats f (c:Creature) =
     c.current <- { c.current with stats = c.current.stats |> f }
     c
 let updateStatus f (c:Creature) =
     c.current <- { c.current with status = c.current.status |> f }
     c
-let addCondition cond = updateStatus (List.append [cond])
+let addCondition cond c =
+    match cond with
+    | Lost (Arm Right | Hand Right) -> c |> updateStats (fun stats -> { stats with readiedWeapon = unarmedStrike 0 } )
+    | _ -> c
+    |> updateStatus (List.append [cond])
 let checkCondition cond (c: Creature) = c.current.status |> List.contains cond
 let checkConditions conditions (c: Creature) = conditions |> List.exists (flip List.contains c.current.status)
 let removeCondition cond = updateStatus (List.filter ((<>)cond))
@@ -291,7 +298,7 @@ module Actions =
         let amount, type1 = weapon.compute(src.current.stats.st + strikingST)
         let basicDamage = amount.throw
         let dr = target.current.stats.dr location
-        let dmg = basicDamage - dr
+        let dmg = basicDamage - dr |> max 0
         let mult = woundingMultiplier(location, type1)
         let injury = ((float dmg) * mult |> int)
         let HP = target.originalStats.hp
@@ -395,8 +402,6 @@ module Actions =
             miss src target weapon
 
 open Actions
-let largeKnife skillBonus = ReadiedWeapon.create((fun stats -> stats.dx + skillBonus), "large knife", Swing, -2, Cutting)
-let duelingGlaive skillBonus = ReadiedWeapon.create((fun stats -> stats.dx + skillBonus), "dueling glaive", Swing, +2, Cutting)
 let lf _ = printfn ""
 let isActive c = c |> checkConditions [Dead; Unconscious] |> not
 let printWorld() =
