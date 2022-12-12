@@ -1,5 +1,6 @@
 #I __SOURCE_DIRECTORY__
 #load "Common.fsx"
+#r "nuget: TextCopy"
 open System
 
 type Id = string
@@ -173,6 +174,7 @@ type World(map, log, ?silent) =
     member this.getDenizen id = denizens |> Map.tryFind id
     member this.clearAll() =
         denizens <- Map.empty
+        log <- []
     member this.clearDeadOrUnconscious() =
         denizens <- denizens |> Map.filter (fun k v -> v |> checkConditions [Dead; Unconscious] |> not)
     member this.add(name, stats) = addCreature(name, stats)
@@ -263,16 +265,17 @@ module Actions =
                 | _ when majorWound -> knockdownCheck 0
                 | _ -> if isCrippling then knockdownCheck 0
             let rec deathCheck numberOfChecks =
-                match loggedAttempt creature.id "not die" new1.ht with
-                | Fail | CritFail ->
-                    world.remember $"{creature.id} dies. [HP = {new1.hp}, HT = {new1.ht}]"
-                    creature |> addCondition Dead |> ignore
-                | CritSuccess | Success ->
-                    if numberOfChecks = 1 then
-                        world.remember $"{creature.id} is too tough to die yet. [HP = {new1.hp}, HT = {new1.ht}]"
-                        addPenalties()
-                    else
-                        deathCheck (numberOfChecks - 1)
+                if numberOfChecks > 0 then
+                    match loggedAttempt creature.id "not die" new1.ht with
+                    | Fail | CritFail ->
+                        world.remember $"{creature.id} dies. [HP = {new1.hp}, HT = {new1.ht}]"
+                        creature |> addCondition Dead |> ignore
+                    | CritSuccess | Success ->
+                        if numberOfChecks = 1 then
+                            world.remember $"{creature.id} is too tough to die yet. [HP = {new1.hp}, HT = {new1.ht}]"
+                            addPenalties()
+                        else
+                            deathCheck (numberOfChecks - 1)
 
             let deathThresholds stats = -(stats.hp / HP) |> max 0
             if deathThresholds new1 > 0 then
@@ -400,10 +403,10 @@ let printWorld() =
     for KeyValue(k,v) in world.getDenizens() |> List.ofSeq do
         if (not << isActive) v then printf "-"
         let status = if v.current.status = Ok then "OK" else String.Join(", ", v.current.status |> List.map (sprintf "%A"))
-        printfn $"{k} [{v.current.stats.team}]: HP {v.current.stats.hp}/{v.originalStats.hp}, {status}"
-    printfn "\n"
+        world.remember $"{k} [{v.current.stats.team}]: HP {v.current.stats.hp}/{v.originalStats.hp}, {status}"
+    world.remember  "\n"
 let newRound roundNumber =
-    printfn "\n=====================\nRound %d" roundNumber
+    sprintf "\n=====================\nRound %d" roundNumber |> world.remember
     printWorld()
 let doRound() =
     for KeyValue(id,src) in world.getDenizens() |> List.ofSeq |> List.sortByDescending (function KeyValue(k,v) -> v.current.stats.speed) do
@@ -416,7 +419,7 @@ let doRound() =
                 | None -> () // victory!
                 | Some target ->
                     attack src.id target.id None
-                    printfn ""
+                    world.remember ""
             src.id |> endTurn
 let fightUntilVictory() =
     let mutable round = 1
@@ -424,7 +427,7 @@ let fightUntilVictory() =
         newRound round
         doRound()
         round <- round + 1
-    printfn "\nFinal results:"
+    world.remember "\nFinal results:"
     printWorld()
     world.clearDeadOrUnconscious()
 world.clearAll()
@@ -432,5 +435,4 @@ for _ in 1..3 do
     world.add("Doomchild", team="blue", st=8, dx=18, speed = 7, readiedWeapon = largeKnife 0, mods=[Berserk 12; StrikingST +10]) |> lf
 world.add("Barbarian", team="red", st=17, dx=13, ht=13, hp=22, speed = 6, readiedWeapon = duelingGlaive +6, dr = (function Eye -> 0 | Skull -> 8 | _ -> 6)) |> lf
 fightUntilVictory()
-newRound 0
-world.getLog() |> List.rev
+String.Join("\n", world.getLog() |> List.rev) |> TextCopy.ClipboardService.SetText
