@@ -432,14 +432,23 @@ let doRound() =
                 if src |> isActive then
                     for _ in 1..(src.current.stats.mods |> Seq.tryPick (function ExtraAttack n -> n + 1 |> Some | _ -> None) |> Option.defaultValue 1) do
                         let team = src.current.stats.team
-                        match world.getDenizens() |> Map.tryPick (fun _ target -> if isActive target && target.current.stats.team <> team then Some target else None) with
-                        | None -> () // victory!
-                        | Some target ->
+                        match world.getDenizens().Values |> Seq.filter (fun target -> isActive target && target.current.stats.team <> team) |> List.ofSeq with
+                        | [] -> () // no opponents: victory!
+                        | targets ->
+
                             if src.current.stats.team = "red" then
-                                // barbarian only attacks torso
-                                attack src.id target.id 4 (Some Torso)
+                                // if any targets still have arms, attack them first
+                                let lostHand = checkConditions [Lost (Arm Right); Lost (Hand Right)]
+                                match targets |> List.sortByDescending (fun t -> t |> lostHand, t.current.stats.hp) with
+                                | target::_ ->
+                                    // barbarian only attacks torso
+                                    if target |> lostHand then
+                                        attack src.id target.id 4 (Some Torso)
+                                    else
+                                        attack src.id target.id 3 (Some (Arm Right))
+                                | _ -> shouldntHappen()
                             else
-                                attack src.id target.id 0 None
+                                attack src.id targets.Head.id 0 None
                             world.remember ""
             src.id |> endTurn
 let fightUntilVictory() =
