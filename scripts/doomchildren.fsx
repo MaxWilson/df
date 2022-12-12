@@ -319,7 +319,7 @@ module Actions =
         let crippleDescr = if cripples.IsSome then ", crippling it" else ""
         world.remember $"{src.id} {verb} {target.id} for {cappedInjury} {location} damage{crippleDescr}! [{dmgDescr} {type1} x {mult}{capDescr}]"
         damage target location cappedInjury cripples.IsSome
-    let defend src target =
+    let defend src target penalty =
         let t = target.current.stats
         let hasMod c = t.mods |> List.contains c
         let cr = if hasMod CombatReflexes then +1 else 0
@@ -330,6 +330,7 @@ module Actions =
             let penalties =
                 if checkCondition MentalStun || checkCondition PhysicalStun then -4 else 0
                 + (if checkCondition Prone then -3 else 0)
+                + penalty
             let adjustDodge dodge = if (float t.hp < float target.originalStats.hp / 3.) then dodge / 2 else dodge
             let parry = (t.readiedWeapon.skill t / 2) + 3 + cr + if retreat then +1 else 0 + (target.roundInfo.parries * -4) + penalties
             let dodge = (((int t.speed)) + 3 + cr |> adjustDodge) + if retreat then +3 else 0 + penalties
@@ -372,7 +373,7 @@ module Actions =
             | CritSuccess | Success -> src |> removeCondition PhysicalStun |> ignore
             | Fail | CritFail -> ()
         src.roundInfo <- RoundInfo.fresh
-    let attack (src:string) (target:string) (location:Location option) =
+    let attack (src:string) (target:string) (deceptive: int) (location:Location option) =
         let src = world[src]
         let target = world[target]
         if src.current.status |> List.exists (function Dead | MentalStun | PhysicalStun | Unconscious -> true | _ -> false) then
@@ -390,6 +391,7 @@ module Actions =
                         (if src.current.status |> List.exists (function Lost(Leg _) -> true | _ -> false) then -6
                          elif src.current.status |> List.exists (function Lost(Foot _) -> true | _ -> false) then -3
                          else 0)
+                         + (-2 * deceptive)
         let with1 = match weapon.description with Some descr -> $" with {descr}" | None -> ""
         let penaltyDescr = if penalty > 0 then $" {penalty}" else ""
         world.remember $"{src.id} attacks {target.id}{with1} [skill {skill}{penaltyDescr}]"
@@ -397,7 +399,7 @@ module Actions =
         | CritSuccess ->
             hit true src target location weapon
         | Success ->
-            if defend src target |> not then
+            if defend src target (-1 * deceptive) |> not then
                 hit false src target location weapon
         | _ ->
             miss src target weapon
@@ -427,7 +429,11 @@ let doRound() =
                         match world.getDenizens() |> Map.tryPick (fun _ target -> if isActive target && target.current.stats.team <> team then Some target else None) with
                         | None -> () // victory!
                         | Some target ->
-                            attack src.id target.id None
+                            if src.current.stats.team = "red" then
+                                // barbarian only attacks torso
+                                attack src.id target.id 3 (Some Torso)
+                            else
+                                attack src.id target.id 0 None
                             world.remember ""
             src.id |> endTurn
 let fightUntilVictory() =
