@@ -11,8 +11,9 @@ type RoundInfo = {
     blockingSpells: int
     hasActed: bool
     shockPenalty: int
+    pendingShockPenalty: int
     }
-    with static member fresh = { retreatedFrom = None; hasActed = false; parries = 0; blocks = 0; blockingSpells = 0; shockPenalty = 0 }
+    with static member fresh = { retreatedFrom = None; hasActed = false; parries = 0; blocks = 0; blockingSpells = 0; shockPenalty = 0; pendingShockPenalty = 0 }
 let Ok = []
 [<StructuredFormatDisplay("{StringRep}")>]
 type Roll = { n:int; d:int; bonus: int }
@@ -98,6 +99,7 @@ type Mod =
     | Berserk of int
     | CombatReflexes
     | ExtraAttack of int
+    | HighPainThreshold
 type DamageClass = Swing | Thrust
 type ReadiedWeapon = {
     description: string option
@@ -156,6 +158,9 @@ let addCondition cond c =
     |> updateStatus (List.append [cond])
 let checkCondition cond (c: Creature) = c.current.status |> List.contains cond
 let checkConditions conditions (c: Creature) = conditions |> List.exists (flip List.contains c.current.status)
+let checkMod mod1 (c: Creature) = c.current.stats.mods |> List.contains mod1
+let checkModf predicate (c: Creature) = c.current.stats.mods |> List.exists predicate
+let checkMods mods (c: Creature) = mods |> List.exists (flip List.contains c.current.stats.mods )
 let removeCondition cond = updateStatus (List.filter ((<>)cond))
 
 type World(map, log, ?silent) =
@@ -252,10 +257,10 @@ module Actions =
         else
             let addPenalties() =
                 // shock, knockdown
-                creature.roundInfo <- { creature.roundInfo with shockPenalty = creature.roundInfo.shockPenalty - injury |> max -4 }
+                creature.roundInfo <- { creature.roundInfo with pendingShockPenalty = creature.roundInfo.pendingShockPenalty - injury |> max -4 }
                 let majorWound = injury >= creature.originalStats.hp / 2
                 let knockdownCheck penalty =
-                    match loggedAttempt2 creature.id "resist knockdown" (creature.current.stats.ht + penalty) with
+                    match loggedAttempt2 creature.id "resist knockdown" (creature.current.stats.ht + penalty + (if creature |> checkMod HighPainThreshold then +3 else 0)) with
                     | (Success | CritSuccess), _ ->
                         ()
                     | Fail, margin when margin < 5 ->
@@ -366,14 +371,13 @@ module Actions =
             | Fail | CritFail ->
                 src |> addCondition Unconscious |> ignore
                 world.remember $"{src.id} falls unconscious"
-        src.roundInfo <- RoundInfo.fresh
+        src.roundInfo <- { RoundInfo.fresh with shockPenalty = src.roundInfo.pendingShockPenalty } // don't clear shock penalty until end of turn
     let endTurn (src: string) =
         let src = world[src]
         if src |> checkCondition PhysicalStun then
             match loggedAttempt src.id "recover from physical stun" src.current.stats.ht with
             | CritSuccess | Success -> src |> removeCondition PhysicalStun |> ignore
             | Fail | CritFail -> ()
-        src.roundInfo <- RoundInfo.fresh
     let attack (src:string) (target:string) (deceptive: int) (location:Location option) =
         let src = world[src]
         let target = world[target]
@@ -388,7 +392,8 @@ module Actions =
                 Location.Random(), 0 // no penalty for random targeting
         let location =
             if target |> checkCondition (Lost location) then Torso else location
-        let penalty = src.roundInfo.shockPenalty + hitPenalty + (if src |> checkCondition Prone then -4 else 0) +
+        let penalty = (if checkMod HighPainThreshold src then 0 else src.roundInfo.shockPenalty)
+                        + hitPenalty + (if src |> checkCondition Prone then -4 else 0) +
                         (if src.current.status |> List.exists (function Lost(Leg _) -> true | _ -> false) then -6
                          elif src.current.status |> List.exists (function Lost(Foot _) -> true | _ -> false) then -3
                          else 0)
@@ -449,6 +454,6 @@ let fightUntilVictory() =
 world.clearAll()
 for _ in 1..3 do
     world.add("Doomchild", team="blue", st=8, dx=18, speed = 7, readiedWeapon = largeKnife 0, mods=[Berserk 12; StrikingST +10]) |> lf
-world.add("Barbarian", team="red", st=17, dx=13, ht=13, hp=22, speed = 6, readiedWeapon = duelingGlaive +6, mods = [ExtraAttack 1], dr = (function Eye -> 0 | Skull -> 8 | _ -> 6)) |> lf
+world.add("Barbarian", team="red", st=17, dx=13, ht=13, hp=22, speed = 6, readiedWeapon = duelingGlaive +6, mods = [ExtraAttack 1; HighPainThreshold], dr = (function Eye -> 0 | Skull -> 8 | _ -> 6)) |> lf
 fightUntilVictory()
 String.Join("\n", world.getLog() |> List.rev) |> TextCopy.ClipboardService.SetText
