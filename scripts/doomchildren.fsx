@@ -432,7 +432,7 @@ let doRound() =
                         | Some target ->
                             if src.current.stats.team = "red" then
                                 // barbarian only attacks torso
-                                attack src.id target.id 3 (Some Torso)
+                                attack src.id target.id 4 (Some Torso)
                             else
                                 attack src.id target.id 0 None
                             world.remember ""
