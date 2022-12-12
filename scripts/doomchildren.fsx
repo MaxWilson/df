@@ -385,6 +385,7 @@ module Actions =
             failwith $"Sorry, {src.id} can't attack because it's {src.current.status}"
         let weapon = src.current.stats.readiedWeapon
         let skill = (weapon.skill src.current.stats)
+        let locDescr = match location with Some loc -> $" {loc}" | None -> ""
         let location, hitPenalty =
             match location with
             | Some location -> location, location.hitPenalty
@@ -400,7 +401,7 @@ module Actions =
                          + (-2 * deceptive)
         let with1 = match weapon.description with Some descr -> $" with {descr}" | None -> ""
         let penaltyDescr = if penalty > 0 then $" {penalty}" else ""
-        world.remember $"{src.id} attacks {target.id}{with1} [skill {skill}{penaltyDescr}]"
+        world.remember $"{src.id} attacks {target.id}{locDescr}{with1} [skill {skill}{penaltyDescr}]"
         match loggedAttempt src.id "hit" (skill + penalty) with
         | CritSuccess ->
             hit true src target location weapon
