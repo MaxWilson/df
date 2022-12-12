@@ -302,7 +302,7 @@ module Actions =
                 HP / 3, Some location
             | _ -> injury, None
         let dmgDescr =
-            if dr > 0 then $"{dmg}({basicDamage}-{dr})" else $"{basicDamage}"
+            if dr > 0 then $"{dmg} ({basicDamage}-{dr})" else $"{basicDamage}"
         let capDescr = (if injury <> cappedInjury then $", capped at {cappedInjury}" else "")
         let verb = if isCrit then "crits" else "hits"
         let crippleDescr = if cripples.IsSome then ", crippling it" else ""
