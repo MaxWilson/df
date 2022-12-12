@@ -94,12 +94,14 @@ module Damage =
         elif st <= 27 then roll ((st - 5)/4) (((st - 5) % 4) - 1)
         else roll ((22 + (st - 27)/2)/4) (((22 + (st - 27)/2) % 4) - 1) // inaccurate at ST 45+ but who cares, this is a better house rule anyway
 open Damage
+type Encumbrance = NoEncumbrance | Light | Medium | Heavy | ExtraHeavy
 type Mod =
     | StrikingST of int
     | Berserk of int
     | CombatReflexes
     | ExtraAttack of int
     | HighPainThreshold
+    | WeaponMaster // TODO: differentiate
 type DamageClass = Swing | Thrust
 type ReadiedWeapon = {
     description: string option
@@ -108,17 +110,29 @@ type ReadiedWeapon = {
     damageRoll: Roll option
     damageClass: DamageClass
     damageMod: int
+    fencingWeapon: bool
     }
     with
-    static member create(skill, roll, type1) = { description = None; skill = skill; damageType = type1; damageRoll = Some roll; damageClass = Thrust; damageMod = 0 }
-    static member create(skill, class1, mod1, type1) = { description = None; skill = skill; damageType = type1; damageRoll = None; damageClass = class1; damageMod = mod1 }
-    static member create(skill, descr, class1, mod1, type1) = { description = Some descr; skill = skill; damageType = type1; damageRoll = None; damageClass = class1; damageMod = mod1 }
-    member this.compute st =
+    static member create(skill, roll, type1) = { description = None; skill = skill; damageType = type1; damageRoll = Some roll; damageClass = Thrust; damageMod = 0; fencingWeapon = false }
+    static member create(skill, class1, mod1, type1) = { description = None; skill = skill; damageType = type1; damageRoll = None; damageClass = class1; damageMod = mod1; fencingWeapon = false }
+    static member create(skill, descr, class1, mod1, type1) = { description = Some descr; skill = skill; damageType = type1; damageRoll = None; damageClass = class1; damageMod = mod1; fencingWeapon = false }
+    static member createFencingWeapon(skill, descr, class1, mod1, type1) = { description = Some descr; skill = skill; damageType = type1; damageRoll = None; damageClass = class1; damageMod = mod1; fencingWeapon = true }
+    member this.compute (src: CreatureStats) =
+        let st =
+            src.st +
+                (src.mods
+                    |> List.tryPick (function StrikingST n -> Some n | _ -> None)
+                    |> Option.defaultValue 0
+                    )
+
         (this.damageRoll
             |> Option.defaultValue (
                 (match this.damageClass with Swing -> sw st | Thrust -> thr st).plus
                     this.damageMod))
-        |> fun roll -> roll, this.damageType
+        |> fun roll ->
+            if src.mods |> List.contains WeaponMaster then
+                { roll with bonus = roll.bonus + 2 * roll.n }, this.damageType
+            else roll, this.damageType
 and CreatureStats = {
     team: string
     st: int
@@ -128,6 +142,7 @@ and CreatureStats = {
     hp: int
     fp: int
     db: int
+    enc: Encumbrance
     speed: float
     dr: Location -> int
     mods: Mod list
@@ -136,7 +151,7 @@ and CreatureStats = {
     with
     member this.damage =
         let strikingST = match this.mods |> List.tryPick (function StrikingST v -> Some v | _ -> None) with Some v -> this.st + v | _ -> this.st
-        this.readiedWeapon.compute strikingST
+        this.readiedWeapon.compute this
 
 type DefenseType = Parry | Block | Dodge
 type Behavior = {
@@ -151,6 +166,7 @@ and Creature = { name: string; id: Id; originalStats: CreatureStats; mutable cur
 let largeKnife skillBonus = ReadiedWeapon.create((fun stats -> stats.dx + skillBonus), "large knife", Swing, -2, Cutting)
 let unarmedStrike skillBonus = ReadiedWeapon.create((fun stats -> stats.dx + skillBonus), "unarmed strike", Thrust, -1, Crushing)
 let duelingGlaive skillBonus = ReadiedWeapon.create((fun stats -> stats.dx + skillBonus), "dueling glaive", Swing, +2, Cutting)
+let rapier skillBonus = ReadiedWeapon.createFencingWeapon((fun stats -> stats.dx + skillBonus), "edged rapier", Swing, 0, Cutting)
 let updateStats f (c:Creature) =
     c.current <- { c.current with stats = c.current.stats |> f }
     c
@@ -200,7 +216,7 @@ type World(map, log, ?silent) =
     member this.clearDeadOrUnconscious() =
         denizens <- denizens |> Map.filter (fun k v -> v |> checkConditions [Dead; Unconscious] |> not)
     member this.add(name, stats, bhv) = addCreature(name, stats, bhv)
-    member this.add(name, ?team, ?st, ?dx, ?iq, ?ht, ?hp, ?fp, ?speed, ?db, ?dr, ?mods, ?attackSkill, ?readiedWeapon, ?damage, ?damageType, ?bhv) =
+    member this.add(name, ?team, ?st, ?dx, ?iq, ?ht, ?hp, ?fp, ?speed, ?enc, ?db, ?dr, ?mods, ?attackSkill, ?readiedWeapon, ?damage, ?damageType, ?bhv) =
         let either = defaultArg
         let st = either st 10
         let dx = either dx 10
@@ -214,6 +230,7 @@ type World(map, log, ?silent) =
             hp = either hp st
             fp = either fp 10
             speed = either speed ((float dx + float ht)/4.)
+            enc = either enc NoEncumbrance
             db = either db 0
             dr = either dr (function Skull -> 2 | _ -> 0)
             readiedWeapon = either readiedWeapon (ReadiedWeapon.create((fun stats -> stats.dx), either damage (d6 1), either damageType Crushing))
@@ -308,11 +325,7 @@ module Actions =
                 addPenalties()
 
     let hit isCrit src (target: Creature) location (weapon:ReadiedWeapon) =
-        let strikingST =
-            src.current.stats.mods
-            |> List.tryPick (function StrikingST n -> Some n | _ -> None)
-            |> Option.defaultValue 0
-        let amount, type1 = weapon.compute(src.current.stats.st + strikingST)
+        let amount, type1 = weapon.compute(src.current.stats)
         let basicDamage = amount.throw
         let dr = target.current.stats.dr location
         let dmg = basicDamage - dr |> max 0
@@ -348,10 +361,16 @@ module Actions =
                 + (if checkCondition Prone then -3 else 0)
                 + penalty
 
-            let adjustDodge dodge = if (float t.hp < float target.originalStats.hp / 3.) then dodge / 2 else dodge
+            let adjustDodge dodge = (if (float t.hp < float target.originalStats.hp / 3.) then dodge / 2 else dodge)
+                                    + (match target.current.stats.enc with NoEncumbrance -> 0 | Light -> -1 | Medium -> -2 | Heavy -> -3 | ExtraHeavy -> -4)
             let alreadyRetreating = target.roundInfo.retreatedFrom = Some src.id
             let willRetreat defense = alreadyRetreating || (target.roundInfo.retreatedFrom.IsNone && target.current.behavior.retreat(defense, src, target))
-            let parry = db + penalties + (t.readiedWeapon.skill t / 2) + 3 + cr + (if willRetreat Parry then +1 else 0) + (target.roundInfo.parries * -4)
+            let parryPenalty =
+                match t.readiedWeapon.fencingWeapon, hasMod WeaponMaster with
+                | true, true -> -1
+                | true, false | false, true -> -2
+                | _ -> -4
+            let parry = db + penalties + (t.readiedWeapon.skill t / 2) + 3 + cr + (if willRetreat Parry then +1 else 0) + (target.roundInfo.parries * parryPenalty)
             let dodge = db + penalties + (((int t.speed)) + 3 + cr |> adjustDodge) + (if willRetreat Dodge then +3 else 0)
             let retreat() =
                 world.remember $"{target.id} retreats away from {src.id}!"
@@ -477,7 +496,10 @@ let fightUntilVictory() =
 world.clearAll()
 for _ in 1..3 do
     world.add("Doomchild", team="blue", st=8, dx=18, speed = 7, readiedWeapon = largeKnife 0, mods=[Berserk 12; StrikingST +10]) |> lf
-world.add("Barbarian", team="red", st=17, dx=13, ht=13, hp=22, speed = 6, db = 2, readiedWeapon = duelingGlaive +6, mods = [ExtraAttack 1; HighPainThreshold], dr = (function Eye -> 0 | Skull -> 8 | _ -> 6), bhv = { retreat = (function (Dodge, _, _) -> true | _ -> false)}) |> lf
+let armor n = function Eye -> 0 | Skull -> n+2 | _ -> n
+world.add("Barbarian", team="red", st=17, dx=13, ht=13, hp=22, speed = 6, db = 2, readiedWeapon = duelingGlaive +6, mods = [ExtraAttack 1; HighPainThreshold; StrikingST +1], dr = armor 6, bhv = { retreat = (function (Dodge, _, _) -> true | _ -> false)}) |> lf
+world.add("Knight", team="red", st=18, dx=14, ht=14, hp=22, speed = 6.25, enc = Medium, db = 3, readiedWeapon = duelingGlaive +7, mods = [CombatReflexes; HighPainThreshold; WeaponMaster; ExtraAttack 1], dr = armor 8, bhv = { retreat = (function (Dodge, _, _) -> true | _ -> false)}) |> lf
+world.add("Swashbuckler", team="red", st=15, dx=15, ht=14, speed = 7.25, db = 2, readiedWeapon = rapier +6, mods = [CombatReflexes; WeaponMaster; ExtraAttack 1; StrikingST +2], dr = armor 3, bhv = { retreat = (function (Dodge, _, _) -> true | _ -> false)}) |> lf
 fightUntilVictory()
 String.Join("\n", world.getLog() |> List.rev) |> TextCopy.ClipboardService.SetText
 
