@@ -138,11 +138,16 @@ and CreatureStats = {
         let strikingST = match this.mods |> List.tryPick (function StrikingST v -> Some v | _ -> None) with Some v -> this.st + v | _ -> this.st
         this.readiedWeapon.compute strikingST
 
-type CreatureStatus = {
+type DefenseType = Parry | Block | Dodge
+type Behavior = {
+    retreat: DefenseType * Creature * Creature -> bool // defense, attacker, me
+    }
+and CreatureStatus = {
     stats: CreatureStats
     status: Status
+    behavior: Behavior
     }
-type Creature = { name: string; id: Id; originalStats: CreatureStats; mutable current: CreatureStatus; mutable roundInfo: RoundInfo }
+and Creature = { name: string; id: Id; originalStats: CreatureStats; mutable current: CreatureStatus; mutable roundInfo: RoundInfo }
 let largeKnife skillBonus = ReadiedWeapon.create((fun stats -> stats.dx + skillBonus), "large knife", Swing, -2, Cutting)
 let unarmedStrike skillBonus = ReadiedWeapon.create((fun stats -> stats.dx + skillBonus), "unarmed strike", Thrust, -1, Crushing)
 let duelingGlaive skillBonus = ReadiedWeapon.create((fun stats -> stats.dx + skillBonus), "dueling glaive", Swing, +2, Cutting)
@@ -174,12 +179,12 @@ type World(map, log, ?silent) =
         log <- msg :: log
         if (defaultArg silent false |> not) then
             printfn "%s" msg
-    let addCreature(name, stats) =
+    let addCreature(name, stats, bhv) =
         let rec getId candidate counter =
             if denizens.ContainsKey candidate then getId (sprintf "%s%d" name counter) (counter + 1)
             else candidate
         let id = getId name 2
-        let creature = { name = name; id = id; originalStats = stats; current = { stats = stats; status = Ok }; roundInfo = RoundInfo.fresh }
+        let creature = { name = name; id = id; originalStats = stats; current = { stats = stats; status = Ok; behavior = bhv }; roundInfo = RoundInfo.fresh }
         denizens <- denizens |> Map.add id creature
         remember1 $"{id} has entered the fray on team {stats.team}."
         denizens[id]
@@ -194,8 +199,8 @@ type World(map, log, ?silent) =
         log <- []
     member this.clearDeadOrUnconscious() =
         denizens <- denizens |> Map.filter (fun k v -> v |> checkConditions [Dead; Unconscious] |> not)
-    member this.add(name, stats) = addCreature(name, stats)
-    member this.add(name, ?team, ?st, ?dx, ?iq, ?ht, ?hp, ?fp, ?speed, ?db, ?dr, ?mods, ?attackSkill, ?readiedWeapon, ?damage, ?damageType) =
+    member this.add(name, stats, bhv) = addCreature(name, stats, bhv)
+    member this.add(name, ?team, ?st, ?dx, ?iq, ?ht, ?hp, ?fp, ?speed, ?db, ?dr, ?mods, ?attackSkill, ?readiedWeapon, ?damage, ?damageType, ?bhv) =
         let either = defaultArg
         let st = either st 10
         let dx = either dx 10
@@ -214,7 +219,8 @@ type World(map, log, ?silent) =
             readiedWeapon = either readiedWeapon (ReadiedWeapon.create((fun stats -> stats.dx), either damage (d6 1), either damageType Crushing))
             mods = either mods []
             }
-        addCreature(name, stats)
+        let bhv = either bhv { retreat = (fun _ -> true) }
+        addCreature(name, stats, bhv)
 let world = World(Map.empty, [])
 
 type Outcome = CritSuccess | Success | Fail | CritFail
@@ -334,7 +340,6 @@ module Actions =
         let db = target.current.stats.db
         let hasMod c = t.mods |> List.contains c
         let cr = if hasMod CombatReflexes then +1 else 0
-        let retreat = defaultArg target.roundInfo.retreatedFrom src.id = src.id
         let checkCondition cond = target |> checkCondition cond
         if checkCondition Unconscious || checkCondition Dead then false
         else
@@ -344,12 +349,15 @@ module Actions =
                 + penalty
 
             let adjustDodge dodge = if (float t.hp < float target.originalStats.hp / 3.) then dodge / 2 else dodge
-            let parry = db + penalties + (t.readiedWeapon.skill t / 2) + 3 + cr + (if retreat then +1 else 0) + (target.roundInfo.parries * -4)
-            let dodge = db + penalties + (((int t.speed)) + 3 + cr |> adjustDodge) + (if retreat then +3 else 0)
-            if retreat then
-                world.remember $"{target.id} retreats!"
+            let alreadyRetreating = target.roundInfo.retreatedFrom = Some src.id
+            let willRetreat defense = alreadyRetreating || (target.roundInfo.retreatedFrom.IsNone && target.current.behavior.retreat(defense, src, target))
+            let parry = db + penalties + (t.readiedWeapon.skill t / 2) + 3 + cr + (if willRetreat Parry then +1 else 0) + (target.roundInfo.parries * -4)
+            let dodge = db + penalties + (((int t.speed)) + 3 + cr |> adjustDodge) + (if willRetreat Dodge then +3 else 0)
+            let retreat() =
+                world.remember $"{target.id} retreats away from {src.id}!"
                 target.roundInfo <- { target.roundInfo with retreatedFrom = Some src.id }
             if parry > dodge then
+                if willRetreat Parry then retreat()
                 target.roundInfo <- { target.roundInfo with parries = target.roundInfo.parries + 1 }
                 match loggedAttempt target.id "parry" parry with
                 | Success | CritSuccess ->
@@ -357,6 +365,7 @@ module Actions =
                 | Fail | CritFail ->
                     false
             else
+                if willRetreat Dodge then retreat()
                 match loggedAttempt target.id "dodge" dodge with
                 | Success | CritSuccess ->
                     true
@@ -380,6 +389,7 @@ module Actions =
             match loggedAttempt src.id "recover from physical stun" src.current.stats.ht with
             | CritSuccess | Success -> src |> removeCondition PhysicalStun |> ignore
             | Fail | CritFail -> ()
+            world.remember ""
     let attack (src:string) (target:string) (deceptive: int) (location:Location option) =
         let src = world[src]
         let target = world[target]
@@ -400,7 +410,8 @@ module Actions =
                         (if src.current.status |> List.exists (function Lost(Leg _) -> true | _ -> false) then -6
                          elif src.current.status |> List.exists (function Lost(Foot _) -> true | _ -> false) then -3
                          else 0)
-                         + (-2 * deceptive)
+        let deceptive = if skill + penalty + (-2 * deceptive) >= 10 then deceptive else 0 // ignore deceptive if it's too high
+        let penalty = penalty + (-2 * deceptive)
         let with1 = match weapon.description with Some descr -> $" with {descr}" | None -> ""
         let penaltyDescr = if penalty > 0 then $" {penalty}" else ""
         world.remember $"{src.id} attacks {target.id}{locDescr}{with1} [skill {skill}{penaltyDescr}]"
@@ -466,6 +477,7 @@ let fightUntilVictory() =
 world.clearAll()
 for _ in 1..3 do
     world.add("Doomchild", team="blue", st=8, dx=18, speed = 7, readiedWeapon = largeKnife 0, mods=[Berserk 12; StrikingST +10]) |> lf
-world.add("Barbarian", team="red", st=17, dx=13, ht=13, hp=22, speed = 6, db = 2, readiedWeapon = duelingGlaive +6, mods = [ExtraAttack 1; HighPainThreshold], dr = (function Eye -> 0 | Skull -> 8 | _ -> 6)) |> lf
+world.add("Barbarian", team="red", st=17, dx=13, ht=13, hp=22, speed = 6, db = 2, readiedWeapon = duelingGlaive +6, mods = [ExtraAttack 1; HighPainThreshold], dr = (function Eye -> 0 | Skull -> 8 | _ -> 6), bhv = { retreat = (function (Dodge, _, _) -> true | _ -> false)}) |> lf
 fightUntilVictory()
 String.Join("\n", world.getLog() |> List.rev) |> TextCopy.ClipboardService.SetText
+
