@@ -440,7 +440,7 @@ let doRound() =
                             if src.current.stats.team = "red" then
                                 // if any targets still have arms, attack them first
                                 let lostHand = checkConditions [Lost (Arm Right); Lost (Hand Right)]
-                                match targets |> List.sortByDescending (fun t -> t |> lostHand, t.current.stats.hp) with
+                                match targets |> List.sortByDescending (fun t -> t |> lostHand |> not, t.current.stats.hp) with
                                 | target::_ ->
                                     // barbarian only attacks torso
                                     if target |> lostHand then
@@ -452,6 +452,7 @@ let doRound() =
                                 attack src.id targets.Head.id 0 None
                             world.remember ""
             src.id |> endTurn
+[true, 2; false, 2; true, 1] |> List.sortDescending
 let fightUntilVictory() =
     let mutable round = 1
     while (world.getDenizens().Values |> Seq.filter isActive |> Seq.groupBy (fun c -> c.current.stats.team) |> Seq.length) > 1 do
