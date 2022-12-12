@@ -331,9 +331,10 @@ module Actions =
                 if checkCondition MentalStun || checkCondition PhysicalStun then -4 else 0
                 + (if checkCondition Prone then -3 else 0)
                 + penalty
+
             let adjustDodge dodge = if (float t.hp < float target.originalStats.hp / 3.) then dodge / 2 else dodge
-            let parry = (t.readiedWeapon.skill t / 2) + 3 + cr + if retreat then +1 else 0 + (target.roundInfo.parries * -4) + penalties
-            let dodge = (((int t.speed)) + 3 + cr |> adjustDodge) + if retreat then +3 else 0 + penalties
+            let parry = penalties + (t.readiedWeapon.skill t / 2) + 3 + cr + (if retreat then +1 else 0) + (target.roundInfo.parries * -4)
+            let dodge = penalties + (((int t.speed)) + 3 + cr |> adjustDodge) + (if retreat then +3 else 0)
             if retreat then
                 world.remember $"{target.id} retreats!"
                 target.roundInfo <- { target.roundInfo with retreatedFrom = Some src.id }
