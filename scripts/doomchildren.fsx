@@ -187,13 +187,13 @@ let checkMod mod1 (c: Creature) = c.current.stats.mods |> List.contains mod1
 let checkModf predicate (c: Creature) = c.current.stats.mods |> List.exists predicate
 let checkMods mods (c: Creature) = mods |> List.exists (flip List.contains c.current.stats.mods )
 let removeCondition cond = updateStatus (List.filter ((<>)cond))
-
-type World(map, log, ?silent) =
+let mutable silent = false
+type World(map, log) =
     let mutable denizens: Map<Id, Creature> = map
     let mutable log : string list = log
     let remember1 msg =
         log <- msg :: log
-        if (defaultArg silent false |> not) then
+        if not silent then
             printfn "%s" msg
     let addCreature(name, stats, bhv) =
         let rec getId candidate counter =
@@ -481,7 +481,7 @@ let doRound() =
                                         attack src.id target.id 3 (Some (Arm Right))
                                 | _ -> shouldntHappen()
                             else
-                                attack src.id targets.Head.id 0 None
+                                attack src.id targets.Head.id 0 (Some Torso)
                             world.remember ""
             src.id |> endTurn
 let fightUntilVictory() =
@@ -503,21 +503,27 @@ world.add("Swashbuckler", team="red", st=15, dx=15, ht=14, speed = 7.25, db = 2,
 fightUntilVictory()
 String.Join("\n", world.getLog() |> List.rev) |> TextCopy.ClipboardService.SetText
 
-let waves n =
-    let rec recur i =
-        world.remember $"\nStarting wave {i}"
-        for _ in 1..3 do
-            world.add("Doomchild", team="blue", st=8, dx=18, speed = 7, readiedWeapon = largeKnife 0, mods=[Berserk 12; StrikingST +10]) |> lf
-        fightUntilVictory()
-        if i < n && world.getDenizens().Values |> Seq.exists (fun c -> c.current.stats.team = "red") then
-            recur (i + 1)
-        else
-            world.remember $"{i} waves completed!"
-    recur 1
-world.clearAll()
-world.add("Barbarian", team="red", st=17, dx=13, ht=13, hp=22, speed = 6, db = 2, readiedWeapon = duelingGlaive +6, mods = [ExtraAttack 1; HighPainThreshold; StrikingST +1], dr = armor 6, bhv = { retreat = (function (Dodge, _, _) -> true | _ -> false)}) |> lf
-world.add("Knight", team="red", st=18, dx=14, ht=14, hp=22, speed = 6.25, enc = Medium, db = 3, readiedWeapon = duelingGlaive +7, mods = [CombatReflexes; HighPainThreshold; WeaponMaster; ExtraAttack 1], dr = armor 8, bhv = { retreat = (function (Dodge, _, _) -> true | _ -> false)}) |> lf
-world.add("Swashbuckler", team="red", st=15, dx=15, ht=14, speed = 7.25, db = 2, readiedWeapon = rapier +6, mods = [CombatReflexes; WeaponMaster; ExtraAttack 1; StrikingST +2], dr = armor 3, bhv = { retreat = (function (Dodge, _, _) -> true | _ -> false)}) |> lf
-waves 6
+let averageOver n =
+    let lf = ignore
+    [for i in 1..n do
+        let waves n =
+            let rec recur i =
+                for _ in 1..3 do
+                    world.add("Doomchild", team="blue", st=8, dx=18, speed = 7, readiedWeapon = largeKnife 0, mods=[Berserk 12; StrikingST +10]) |> lf
+                world.remember $"\nStarting wave {i}"
+                fightUntilVictory()
+                if i < n && world.getDenizens().Values |> Seq.exists (fun c -> c.current.stats.team = "red") then
+                    recur (i + 1)
+                else
+                    world.remember $"{i} waves completed!"
+                    world.getDenizens().Values |> Seq.filter (fun c -> c.current.stats.team = "red") |> Seq.length
+            recur 1
+        world.clearAll()
+        world.add("Barbarian", team="red", st=17, dx=13, ht=13, hp=22, speed = 6, db = 2, readiedWeapon = duelingGlaive +6, mods = [ExtraAttack 1; HighPainThreshold; StrikingST +1], dr = armor 6, bhv = { retreat = (function (Dodge, _, _) -> true | _ -> false)}) |> lf
+        world.add("Knight", team="red", st=18, dx=14, ht=14, hp=22, speed = 6.25, enc = Medium, db = 3, readiedWeapon = duelingGlaive +7, mods = [CombatReflexes; HighPainThreshold; WeaponMaster; ExtraAttack 1], dr = armor 8, bhv = { retreat = (function (Dodge, _, _) -> true | _ -> false)}) |> lf
+        //world.add("Swashbuckler", team="red", st=15, dx=15, ht=14, speed = 7.25, db = 2, readiedWeapon = rapier +6, mods = [CombatReflexes; WeaponMaster; ExtraAttack 1; StrikingST +2], dr = armor 3, bhv = { retreat = (function (Dodge, _, _) -> true | _ -> false)}) |> lf
+        waves 8 |> float] |> List.average
+silent <- true
+averageOver 100
 String.Join("\n", world.getLog() |> List.rev) |> TextCopy.ClipboardService.SetText
 
