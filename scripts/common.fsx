@@ -11,7 +11,7 @@ let rand = System.Random()
 let chooseRandom (lst: _ list) =
     lst[rand.Next lst.Length]
 
-let shouldntHappen v = failwith $"Bug! This shouldn't ever happen even though the type system doesn't prevent it--it should be prevented by runtime logic."
+let shouldntHappen msg = failwith $"Bug! {msg} This shouldn't ever happen even though the type system doesn't prevent it--it should be prevented by runtime logic."
 module String =
     let trim (s:string) = s.Trim()
     let trimEnd (s:string) = s.TrimEnd()
