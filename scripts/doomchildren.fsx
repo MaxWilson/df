@@ -1,5 +1,6 @@
 #I __SOURCE_DIRECTORY__
 #load "Common.fsx"
+#load "Geo.fsx"
 #r "nuget: TextCopy"
 open System
 
