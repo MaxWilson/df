@@ -9,7 +9,8 @@ type API<'id, 'actual> =
 type Coord = float * float
 type Id = string
 type Constraint = NearThing of Id * distance: float | NearCoord of Coord * distance: float
-type Preference = CloseTo of Id | AwayFrom of Id
+type Direction = Up | Down | Left | Right
+type Preference = CloseTo of Id | AwayFrom of Id | Direction of Direction
 type DiscreteGeo(ms, ns, api: API<_,_>) =
     let points : Coord list =
         [for m in ms do
@@ -61,4 +62,4 @@ geo.Draw() |> printfn "%s"
 geo.Move("Bob", (1.5, 10.), (1.5, 10.))
 geo.Draw() |> printfn "%s"
 geo.Move("Bob", (1.5, 10.), (2., 20.))
-geo.Draw() |> printfn "%s"
+geo.Draw() |> printfn "\n%s"
