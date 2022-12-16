@@ -26,13 +26,13 @@ let mutable points : Coord list = []
 let mutable spaces : Map<Coord, Id list> = points |> List.map (fun p -> p, []) |> Map.ofList
 let mutable occupancy : Map<Id, Coord> = Map.empty
 
-points <-
-    [for m in ms do
-        for n in ns do
-            m,n]
-spaces <- points |> List.map (fun p -> p, []) |> Map.ofList
-occupancy <- Map.empty
-
+let init() =
+    points <-
+        [for m in ms do
+            for n in ns do
+                m,n]
+    spaces <- points |> List.map (fun p -> p, []) |> Map.ofList
+    occupancy <- Map.empty
 let place (thingId: Id, coords) =
     if not (points |> List.contains coords) then shouldntHappen "Out of bounds, out of scope for this scenario."
     spaces <- spaces |> Map.change coords (function Some lst -> Some (lst@[thingId]) | None -> Some [thingId])
@@ -53,9 +53,12 @@ let draw() : string =
         for n in ns do
             match spaces |> Map.tryFind (m,n) with
             | Some (thingId::_) when thingId.Length > 0 ->
-                s.Append (thingId.Substring(0, 1))
+                if thingId.Length >= 2 then
+                    s.Append $"{thingId[0]}{thingId[thingId.Length - 1]}"
+                else
+                   s.Append $"{thingId} "
             | None | Some [] | Some _ ->
-                s.Append "."
+                s.Append ". "
             |> ignore
         s.AppendLine "" |> ignore
     s.ToString()
@@ -63,7 +66,11 @@ let thingsInRegion (coords: Coord list) : 't list = notImpl()
 let pointsNear(coord: Coord, constraints: Constraint list, preferences: Preference list) =
     notImpl()
 
+init()
+printfn ""
 place("Bob", (1.5, 10.))
+place("Doomchild3", (1., 10.))
+place("Doomchild", (1.5, 10.5))
 draw() |> printfn "%s"
 move("Bob", (1.5, 10.), (1.5, 10.))
 draw() |> printfn "%s"
