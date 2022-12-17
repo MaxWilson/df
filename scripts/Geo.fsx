@@ -12,7 +12,7 @@ type API<'id, 'actual> =
 //type T = string
 type Coord = float * float
 type Id = string
-type Constraint = Near of Id * distance: float | NearPlace of Coord * distance: float
+type Constraint = Empty | Near of Id * distance: float | NearPlace of Coord * distance: float
 type Direction = Up | Down | Left | Right
 type Preference = CloseTo of Id | AwayFrom of Id | CloseToPlace of Coord | Direction of Direction
 let (ms, ns) = ([(1.)..0.5..(2.)], [(0.)..0.5..(20.)])
@@ -62,10 +62,14 @@ let draw() : string =
 let distance ((m1, n1): Coord) ((m2, n2): Coord) : float =
     let (m,n) = (m1-m2), (n1-n2)
     sqrt(m*m + n*n)
-let thingsInRegion (coords: Coord list) : 't list = notImpl()
+let thingsInRegion (coords: Coord list) : _ list =
+    coords |> List.collect(fun c -> spaces[c])
 let region(constraints: Constraint list, preferences: Preference list) : Coord list =
     let rec constrain filter orderBy = function
         | [] -> filter, orderBy
+        | Empty::rest ->
+            let filter rhs = (filter rhs && spaces[rhs].IsEmpty)
+            constrain filter orderBy rest
         | Near(id, dist)::rest ->
             let otherCoords = occupancy[id]
             let filter rhs = (filter rhs && distance otherCoords rhs <= dist)
@@ -91,11 +95,11 @@ let region(constraints: Constraint list, preferences: Preference list) : Coord l
                 | Left -> n
                 | Right -> -n
             order (List.sortBy (directionality) >> orderBy) rest
-    let filter, orderBy = constrain (fun coord -> spaces[coord].IsEmpty) id constraints
+    let filter, orderBy = constrain (fun coord -> true) id constraints
     let orderBy = order orderBy preferences
     points |> List.filter filter |> orderBy
 let place (thingId: Id, constraints: Constraint list, prefer : Preference list) : Coord =
-    match region(constraints, prefer) with
+    match region(Empty::constraints, prefer) with
     | (coords::_) ->
         if not (points |> List.contains coords) then shouldntHappen "Out of bounds, out of scope for this scenario."
         spaces <- spaces |> Map.change coords (function Some lst -> Some (lst@[thingId]) | None -> Some [thingId])
@@ -105,9 +109,9 @@ let place (thingId: Id, constraints: Constraint list, prefer : Preference list) 
         failwith "Not possible, sorry!"
 
 type GeoFsi =
-    static member move(id, point) = move(id, point)
+    //static member move(id, point) = move(id, point)
     static member move(id, ?constraints, ?preferences) =
-        let points = region(defaultArg constraints [], defaultArg preferences [])
+        let points = region(Empty::(defaultArg constraints []), defaultArg preferences [])
         move(id, points.Head)
     static member place(id, x, y) = let coords = x,y in place(id, [NearPlace(coords, 3)], [CloseToPlace coords])
     static member place(id, ?constraints, ?preferences) = place(id, defaultArg constraints [], defaultArg preferences [])
@@ -115,7 +119,8 @@ type GeoFsi =
         GeoFsi.move(id, [Near(id, defaultArg mv 1.2)], [CloseTo otherId]@(defaultArg prefs []))
     static member moveAway(id, otherId, ?mv, ?prefs) =
         GeoFsi.move(id, [Near(id, defaultArg mv 1.2)], [AwayFrom otherId]@(defaultArg prefs []))
-
+    static member region(?constraints, ?prefs) = region(defaultArg constraints [], defaultArg prefs [])
+    static member things(?constraints, ?prefs) = region(defaultArg constraints [], defaultArg prefs []) |> thingsInRegion
 open type GeoFsi
 init()
 printfn ""
@@ -130,3 +135,5 @@ for _ in 1..20 do
     moveTowards("Doomchild3", "Fred")
     draw() |> printfn "\n%s"
     System.Threading.Thread.Sleep 50
+for id in things([Near("Doomchild", 5.)]) do
+    printfn "%s: %f from epicenter" id (distance occupancy[id] occupancy["Doomchild"])
