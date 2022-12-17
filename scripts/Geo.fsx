@@ -33,16 +33,17 @@ let init() =
                 m,n]
     spaces <- points |> List.map (fun p -> p, []) |> Map.ofList
     occupancy <- Map.empty
-let move (thingId: Id, from, to1) =
-    if not (points |> List.contains from) then shouldntHappen "Out of bounds, out of scope for this scenario."
-    elif not (points |> List.contains to1) then shouldntHappen "Out of bounds, out of scope for this scenario."
+let move (thingId: Id, to1) =
+    if not (points |> List.contains to1) then shouldntHappen "Out of bounds, out of scope for this scenario."
     else
+        let from = occupancy[thingId]
         let creature, remainder = spaces[from] |> List.partition ((=)thingId)
         if creature.IsEmpty then
             shouldntHappen $"Placement error! {thingId} isn't at {from} in the first place!"
         spaces <- spaces
                 |> Map.add from remainder
                 |> Map.change to1 (function Some lst -> Some (lst@[thingId]) | None -> Some [thingId])
+        occupancy <- occupancy |> Map.add thingId to1
 let draw() : string =
     let s = System.Text.StringBuilder()
     for m in ms do
@@ -68,11 +69,9 @@ let region(constraints: Constraint list, preferences: Preference list) : Coord l
         | Near(id, dist)::rest ->
             let otherCoords = occupancy[id]
             let filter rhs = (filter rhs && distance otherCoords rhs <= dist)
-            let orderBy = List.sortBy (distance otherCoords) >> orderBy
             constrain filter orderBy rest
         | NearPlace(otherCoords, dist)::rest ->
             let filter rhs = (filter rhs && distance otherCoords rhs <= dist)
-            let orderBy = List.sortBy (distance otherCoords) >> orderBy
             constrain filter orderBy rest
     let rec order orderBy = function
         | [] -> orderBy
@@ -105,17 +104,29 @@ let place (thingId: Id, constraints: Constraint list, prefer : Preference list) 
     | [] ->
         failwith "Not possible, sorry!"
 
+type GeoFsi =
+    static member move(id, point) = move(id, point)
+    static member move(id, ?constraints, ?preferences) =
+        let points = region(defaultArg constraints [], defaultArg preferences [])
+        move(id, points.Head)
+    static member place(id, x, y) = let coords = x,y in place(id, [NearPlace(coords, 3)], [CloseToPlace coords])
+    static member place(id, ?constraints, ?preferences) = place(id, defaultArg constraints [], defaultArg preferences [])
+    static member moveTowards(id, otherId, ?mv, ?prefs) =
+        GeoFsi.move(id, [Near(id, defaultArg mv 1.2)], [CloseTo otherId]@(defaultArg prefs []))
+    static member moveAway(id, otherId, ?mv, ?prefs) =
+        GeoFsi.move(id, [Near(id, defaultArg mv 1.2)], [AwayFrom otherId]@(defaultArg prefs []))
+
+open type GeoFsi
 init()
 printfn ""
-let place1(id, x, y) = let coords = x,y in place(id, [NearPlace(coords, 3)], [CloseToPlace coords])
-place1("Bob", 1.5, 10.)
-place("Fred", [Near ("Bob",3.)], [Direction Right])
-place1("Doomchild3", 1., 10.)
-place1("Doomchild", 1.5, 10.5)
-draw() |> printfn "%s"
-move("Bob", (1.5, 10.), (1.5, 10.))
-draw() |> printfn "%s"
-move("Bob", (1.5, 10.), (2., 20.))
-draw() |> printfn "\n%s"
-region([NearPlace ((1.5, 10.), 2)], [Direction Up])
-region([Near ("Bob", 2)], [AwayFrom "Doomchild3"; AwayFrom "Doomchild"])
+place("Bob", 1.5, 10.)
+place("Fred", [Near ("Bob",3.)], [CloseTo "Bob"; Direction Right])
+place("Doomchild3", 1., 10.)
+place("Doomchild", 1.5, 10.5)
+for _ in 1..20 do
+    moveAway("Bob", "Doomchild", 3., [AwayFrom "Doomchild3"])
+    moveTowards("Fred", "Bob")
+    moveTowards("Doomchild", "Fred")
+    moveTowards("Doomchild3", "Fred")
+    draw() |> printfn "\n%s"
+    System.Threading.Thread.Sleep 50
