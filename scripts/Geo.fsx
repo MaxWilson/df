@@ -121,19 +121,19 @@ type GeoFsi =
         GeoFsi.move(id, [Near(id, defaultArg mv 1.2)], [AwayFrom otherId]@(defaultArg prefs []))
     static member region(?constraints, ?prefs) = region(defaultArg constraints [], defaultArg prefs [])
     static member things(?constraints, ?prefs) = region(defaultArg constraints [], defaultArg prefs []) |> thingsInRegion
-open type GeoFsi
-init()
-printfn ""
-place("Bob", 1.5, 10.)
-place("Fred", [Near ("Bob",3.)], [CloseTo "Bob"; Direction Right])
-place("Doomchild3", 1., 10.)
-place("Doomchild", 1.5, 10.5)
-for _ in 1..20 do
-    moveAway("Bob", "Doomchild", 3., [AwayFrom "Doomchild3"])
-    moveTowards("Fred", "Bob")
-    moveTowards("Doomchild", "Fred")
-    moveTowards("Doomchild3", "Fred")
-    draw() |> printfn "\n%s"
-    System.Threading.Thread.Sleep 50
-for id in things([Near("Doomchild", 5.)]) do
-    printfn "%s: %f from epicenter" id (distance occupancy[id] occupancy["Doomchild"])
+//open type GeoFsi
+//init()
+//printfn ""
+//place("Bob", 1.5, 10.)
+//place("Fred", [Near ("Bob",3.)], [CloseTo "Bob"; Direction Right])
+//place("Doomchild3", 1., 10.)
+//place("Doomchild", 1.5, 10.5)
+//for _ in 1..20 do
+//    moveAway("Bob", "Doomchild", 3., [AwayFrom "Doomchild3"])
+//    moveTowards("Fred", "Bob")
+//    moveTowards("Doomchild", "Fred")
+//    moveTowards("Doomchild3", "Fred")
+//    draw() |> printfn "\n%s"
+//    System.Threading.Thread.Sleep 50
+//for id in things([Near("Doomchild", 5.)]) do
+//    printfn "%s: %f from epicenter" id (distance occupancy[id] occupancy["Doomchild"])

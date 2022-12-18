@@ -73,8 +73,9 @@ type Location = Torso | Skull | Eye | Arm of Side | Leg of Side | Hand of Side |
         | Arm _ | Leg _ -> -2
         | Face | Neck -> -5
         | Torso -> 0
-type Condition = Dead | Unconscious | MentalStun | PhysicalStun | Prone | Lost of Location // prone is technically a posture not a condition, but we'll leave posture as TODO for now
+type Condition = Dead | Unconscious | MentalStun | PhysicalStun of penalty: int | Prone | Lost of Location // prone is technically a posture not a condition, but we'll leave posture as TODO for now
 type Status = Condition list
+type Placement = Aggressive | Defensive
 module Damage =
     type DamageType = Cutting | Impaling | Crushing | Piercing | Burning
     let woundingMultiplier = function
@@ -103,6 +104,8 @@ type Mod =
     | ExtraAttack of int
     | HighPainThreshold
     | WeaponMaster // TODO: differentiate
+    | SongOfCommand of skill:int
+    | Concussion of skill:int
 type DamageClass = Swing | Thrust
 type ReadiedWeapon = {
     description: string option
@@ -142,9 +145,12 @@ and CreatureStats = {
     ht: int
     hp: int
     fp: int
+    will: int
+    speed: float
+    mv: int
+    dodge: int
     db: int
     enc: Encumbrance
-    speed: float
     dr: Location -> int
     mods: Mod list
     readiedWeapon: ReadiedWeapon
@@ -196,14 +202,28 @@ type World(map, log) =
         log <- msg :: log
         if not silent then
             printfn "%s" msg
-    let addCreature(name, stats, bhv) =
+    let addCreature(name, stats, bhv, placement) =
+        let placement = defaultArg placement Aggressive
+        let constraints, preferences =
+            let allies, enemies = denizens.Values |> List.ofSeq |> List.partition (fun c -> c.current.stats.team = stats.team)
+            let random (lst: Creature list) = lst[rand.Next(lst.Length)].id
+            let getId (c:Creature) = c.id
+            match allies, enemies, placement with
+            | [], [], _ ->
+                [], [Geo.CloseToPlace((Geo.ms |> List.average, Geo.ns |> List.average))]
+            | allies, enemies, Aggressive ->
+                [], (allies |> List.map (getId >> Geo.CloseTo))@(enemies |> List.map (getId >> Geo.CloseTo))
+            | allies, enemies, Defensive ->
+                (allies |> List.map (fun c -> Geo.Near(c.id, 10.))), (enemies |> List.map (getId >> Geo.AwayFrom))@(allies |> List.map (getId >> Geo.CloseTo))
         let rec getId candidate counter =
             if denizens.ContainsKey candidate then getId (sprintf "%s%d" name counter) (counter + 1)
             else candidate
         let id = getId name 2
         let creature = { name = name; id = id; originalStats = stats; current = { stats = stats; status = Ok; behavior = bhv }; roundInfo = RoundInfo.fresh }
         denizens <- denizens |> Map.add id creature
+        Geo.place(id, constraints, preferences) |> ignore
         remember1 $"{id} has entered the fray on team {stats.team}."
+        remember1 (Geo.draw())
         denizens[id]
     member this.Item with get id = denizens[id]
     member this.getLog() = log
@@ -214,23 +234,30 @@ type World(map, log) =
     member this.clearAll() =
         denizens <- Map.empty
         log <- []
+        Geo.init()
     member this.clearDeadOrUnconscious() =
         denizens <- denizens |> Map.filter (fun k v -> v |> checkConditions [Dead; Unconscious] |> not)
-    member this.add(name, stats, bhv) = addCreature(name, stats, bhv)
-    member this.add(name, ?team, ?st, ?dx, ?iq, ?ht, ?hp, ?fp, ?speed, ?enc, ?db, ?dr, ?mods, ?attackSkill, ?readiedWeapon, ?damage, ?damageType, ?bhv) =
+    member this.add(name, stats, bhv, ?placement) = addCreature(name, stats, bhv, placement)
+    member this.add(name, ?team, ?st, ?dx, ?iq, ?ht, ?hp, ?fp, ?will, ?mv, ?speed, ?dodge,
+            ?enc, ?db, ?dr, ?mods, ?attackSkill, ?readiedWeapon, ?damage, ?damageType, ?bhv, ?placement) =
         let either = defaultArg
         let st = either st 10
         let dx = either dx 10
+        let iq = either iq 10
         let ht = either ht 10
+        let speed = either speed ((float dx + float ht)/4.)
         let stats: CreatureStats = {
             team = either team (System.Guid.NewGuid().ToString())
             st = st
             dx = dx
-            iq = either iq 10
+            iq = iq
             ht = ht
             hp = either hp st
             fp = either fp 10
-            speed = either speed ((float dx + float ht)/4.)
+            will = either will iq
+            speed = speed
+            mv = either mv (speed |> int)
+            dodge = either dodge (speed |> int)
             enc = either enc NoEncumbrance
             db = either db 0
             dr = either dr (function Skull -> 2 | _ -> 0)
@@ -238,7 +265,7 @@ type World(map, log) =
             mods = either mods []
             }
         let bhv = either bhv { retreat = (fun _ -> true) }
-        addCreature(name, stats, bhv)
+        addCreature(name, stats, bhv, placement)
 let world = World(Map.empty, [])
 
 type Outcome = CritSuccess | Success | Fail | CritFail
@@ -293,7 +320,7 @@ module Actions =
                     | (Success | CritSuccess), _ ->
                         ()
                     | Fail, margin when margin < 5 ->
-                        addCondition PhysicalStun creature |> ignore
+                        addCondition (PhysicalStun 0) creature |> ignore
                         addCondition Prone creature |> ignore
                         world.remember $"{creature.id} falls down, stunned"
                     | (Fail | CritFail), _ ->
@@ -358,7 +385,7 @@ module Actions =
         if checkCondition Unconscious || checkCondition Dead then false
         else
             let penalties =
-                if checkCondition MentalStun || checkCondition PhysicalStun then -4 else 0
+                if target |> checkConditionf (function PhysicalStun _ | MentalStun -> true | _ -> false) then -4 else 0
                 + (if checkCondition Prone then -3 else 0)
                 + penalty
 
@@ -405,15 +432,19 @@ module Actions =
         src.roundInfo <- { RoundInfo.fresh with shockPenalty = src.roundInfo.pendingShockPenalty } // don't clear shock penalty until end of turn
     let endTurn (src: string) =
         let src = world[src]
-        if src |> checkCondition PhysicalStun then
-            match loggedAttempt src.id "recover from physical stun" src.current.stats.ht with
-            | CritSuccess | Success -> src |> removeCondition PhysicalStun |> ignore
+        if src |> checkCondition MentalStun then
+            match loggedAttempt src.id "recover from mental stun" src.current.stats.ht with
+            | CritSuccess | Success -> src |> removeCondition MentalStun |> ignore
             | Fail | CritFail -> ()
-            world.remember ""
+        if src |> checkConditionf (function PhysicalStun _ -> true | _ -> false) then
+            match loggedAttempt src.id "recover from physical stun" src.current.stats.ht with
+            | CritSuccess | Success -> src |> updateStatus (List.filter (function PhysicalStun _ -> false | _ -> true)) |> ignore
+            | Fail | CritFail -> ()
+        world.remember ""
     let attack (src:string) (target:string) (deceptive: int) (location:Location option) =
         let src = world[src]
         let target = world[target]
-        if src.current.status |> List.exists (function Dead | MentalStun | PhysicalStun | Unconscious -> true | _ -> false) then
+        if src.current.status |> List.exists (function Dead | MentalStun | PhysicalStun _ | Unconscious -> true | _ -> false) then
             failwith $"Sorry, {src.id} can't attack because it's {src.current.status}"
         let weapon = src.current.stats.readiedWeapon
         let skill = (weapon.skill src.current.stats)
@@ -459,7 +490,7 @@ let newRound roundNumber =
 let doRound() =
     for KeyValue(id,src) in world.getDenizens() |> List.ofSeq |> List.sortByDescending (function KeyValue(k,v) -> v.current.stats.speed) do
         if src |> isActive then
-            if src |> checkCondition PhysicalStun then
+            if src |> checkConditionf (function PhysicalStun _ | MentalStun -> true | _ -> false) then
                 world.remember $"{id} is stunned and does nothing"
             else
                 startTurn src.id
@@ -469,7 +500,6 @@ let doRound() =
                         match world.getDenizens().Values |> Seq.filter (fun target -> isActive target && target.current.stats.team <> team) |> List.ofSeq with
                         | [] -> () // no opponents: victory!
                         | targets ->
-
                             if src.current.stats.team = "red" then
                                 // if any targets still have arms, attack them first
                                 let lostLimb = checkConditionf (function Lost (Arm _ | Hand _ | Leg _ | Foot _) -> true | _ -> false)
@@ -494,13 +524,16 @@ let fightUntilVictory() =
     world.remember "\nFinal results:"
     printWorld()
     world.clearDeadOrUnconscious()
+let armor n = function Eye -> 0 | Skull -> n+2 | _ -> n
 world.clearAll()
 for _ in 1..3 do
     world.add("Doomchild", team="blue", st=8, dx=18, speed = 7, readiedWeapon = largeKnife 0, mods=[Berserk 12; StrikingST +10]) |> lf
-let armor n = function Eye -> 0 | Skull -> n+2 | _ -> n
 world.add("Barbarian", team="red", st=17, dx=13, ht=13, hp=22, speed = 6, db = 2, readiedWeapon = duelingGlaive +6, mods = [ExtraAttack 1; HighPainThreshold; StrikingST +1], dr = armor 6, bhv = { retreat = (function (Dodge, _, _) -> true | _ -> false)}) |> lf
 world.add("Knight", team="red", st=18, dx=14, ht=14, hp=22, speed = 6.25, enc = Medium, db = 3, readiedWeapon = duelingGlaive +7, mods = [CombatReflexes; HighPainThreshold; WeaponMaster; ExtraAttack 1], dr = armor 8, bhv = { retreat = (function (Dodge, _, _) -> true | _ -> false)}) |> lf
 world.add("Swashbuckler", team="red", st=15, dx=15, ht=14, speed = 7.25, db = 2, readiedWeapon = rapier +6, mods = [CombatReflexes; WeaponMaster; ExtraAttack 1; StrikingST +2], dr = armor 3, bhv = { retreat = (function (Dodge, _, _) -> true | _ -> false)}) |> lf
+world.add("Elven Bard", team="red", st=10, dx=13, iq=14, ht=11, speed=6.25,
+    mods=[SongOfCommand 16; Concussion 15],
+    placement=Defensive, bhv = { retreat = (function (Dodge, _, _) -> true | _ -> false)}) |> lf
 fightUntilVictory()
 String.Join("\n", world.getLog() |> List.rev) |> TextCopy.ClipboardService.SetText
 
