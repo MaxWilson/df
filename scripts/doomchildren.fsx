@@ -106,6 +106,7 @@ type Mod =
     | WeaponMaster // TODO: differentiate
     | SongOfCommand of skill:int
     | Concussion of skill:int
+    | ResistSound of skill: int
 type DamageClass = Swing | Thrust
 type ReadiedWeapon = {
     description: string option
@@ -161,12 +162,16 @@ and CreatureStats = {
         this.readiedWeapon.compute this
 
 type DefenseType = Parry | Block | Dodge
+type Effect = ResistingSound | MindControlled | Haste of int | Shield of int
+type Concentration = Concentration of Id * Effect * penaltyCategory: string * cumulativePenalty: int
 type Behavior = {
     retreat: DefenseType * Creature * Creature -> bool // defense, attacker, me
     }
 and CreatureStatus = {
     stats: CreatureStats
     status: Status
+    effects: Effect list
+    concentratingOn: Concentration list
     behavior: Behavior
     }
 and Creature = { name: string; id: Id; originalStats: CreatureStats; mutable current: CreatureStatus; mutable roundInfo: RoundInfo }
@@ -219,7 +224,7 @@ type World(map, log) =
             if denizens.ContainsKey candidate then getId (sprintf "%s%d" name counter) (counter + 1)
             else candidate
         let id = getId name 2
-        let creature = { name = name; id = id; originalStats = stats; current = { stats = stats; status = Ok; behavior = bhv }; roundInfo = RoundInfo.fresh }
+        let creature = { name = name; id = id; originalStats = stats; current = { stats = stats; effects = []; concentratingOn = []; status = Ok; behavior = bhv }; roundInfo = RoundInfo.fresh }
         denizens <- denizens |> Map.add id creature
         Geo.place(id, constraints, preferences) |> ignore
         remember1 $"{id} has entered the fray on team {stats.team}."
@@ -524,6 +529,7 @@ let fightUntilVictory() =
     world.remember "\nFinal results:"
     printWorld()
     world.clearDeadOrUnconscious()
+let castResistSoundOnAllies (caster: Creature) = notImpl()
 let armor n = function Eye -> 0 | Skull -> n+2 | _ -> n
 world.clearAll()
 for _ in 1..3 do
@@ -532,8 +538,9 @@ world.add("Barbarian", team="red", st=17, dx=13, ht=13, hp=22, speed = 6, db = 2
 world.add("Knight", team="red", st=18, dx=14, ht=14, hp=22, speed = 6.25, enc = Medium, db = 3, readiedWeapon = duelingGlaive +7, mods = [CombatReflexes; HighPainThreshold; WeaponMaster; ExtraAttack 1], dr = armor 8, bhv = { retreat = (function (Dodge, _, _) -> true | _ -> false)}) |> lf
 world.add("Swashbuckler", team="red", st=15, dx=15, ht=14, speed = 7.25, db = 2, readiedWeapon = rapier +6, mods = [CombatReflexes; WeaponMaster; ExtraAttack 1; StrikingST +2], dr = armor 3, bhv = { retreat = (function (Dodge, _, _) -> true | _ -> false)}) |> lf
 world.add("Elven Bard", team="red", st=10, dx=13, iq=14, ht=11, speed=6.25,
-    mods=[SongOfCommand 16; Concussion 15],
-    placement=Defensive, bhv = { retreat = (function (Dodge, _, _) -> true | _ -> false)}) |> lf
+    mods=[SongOfCommand 16; Concussion 14; ResistSound 15],
+    placement=Defensive, bhv = { retreat = (function (Dodge, _, _) -> true | _ -> false)}) |>
+    castResistSoundOnAllies |> lf
 fightUntilVictory()
 String.Join("\n", world.getLog() |> List.rev) |> TextCopy.ClipboardService.SetText
 
