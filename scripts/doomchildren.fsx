@@ -163,7 +163,7 @@ and CreatureStats = {
 
 type DefenseType = Parry | Block | Dodge
 type Effect = ResistingSound | MindControlled | Haste of int | Shield of int
-type Concentration = Concentration of Id * Effect * penaltyCategory: string * cumulativePenalty: int
+type Concentration = { id: Id; effect: Effect; penaltyCategory: string; cumulativePenalty: int }
 type Behavior = {
     retreat: DefenseType * Creature * Creature -> bool // defense, attacker, me
     }
@@ -175,10 +175,6 @@ and CreatureStatus = {
     behavior: Behavior
     }
 and Creature = { name: string; id: Id; originalStats: CreatureStats; mutable current: CreatureStatus; mutable roundInfo: RoundInfo }
-let largeKnife skillBonus = ReadiedWeapon.create((fun stats -> stats.dx + skillBonus), "large knife", Swing, -2, Cutting)
-let unarmedStrike skillBonus = ReadiedWeapon.create((fun stats -> stats.dx + skillBonus), "unarmed strike", Thrust, -1, Crushing)
-let duelingGlaive skillBonus = ReadiedWeapon.create((fun stats -> stats.dx + skillBonus), "dueling glaive", Swing, +2, Cutting)
-let rapier skillBonus = ReadiedWeapon.createFencingWeapon((fun stats -> stats.dx + skillBonus), "edged rapier", Swing, 0, Cutting)
 let updateStats f (c:Creature) =
     c.current <- { c.current with stats = c.current.stats |> f }
     c
@@ -199,6 +195,8 @@ let checkMod mod1 (c: Creature) = c.current.stats.mods |> List.contains mod1
 let checkModf predicate (c: Creature) = c.current.stats.mods |> List.exists predicate
 let checkMods mods (c: Creature) = mods |> List.exists (flip List.contains c.current.stats.mods )
 let removeCondition cond = updateStatus (List.filter ((<>)cond))
+let addEffect = notImpl
+let addConcentrationEffect (target, effect) caster = notImpl
 let mutable silent = false
 type World(map, log) =
     let mutable denizens: Map<Id, Creature> = map
@@ -274,6 +272,9 @@ type World(map, log) =
 let world = World(Map.empty, [])
 
 type Outcome = CritSuccess | Success | Fail | CritFail
+let (|AnyFail|AnySuccess|) = function
+    | CritSuccess | Success -> AnySuccess
+    | CritFail | Fail -> AnyFail
 module Actions =
     let eval skill roll =
         match roll with
@@ -301,9 +302,9 @@ module Actions =
         let success() = world.remember $"{aggressorName} wins"; Success
         let fail() = world.remember $"{defenderName} wins"; Fail
         match throw aggressor, throw defender with
-        | ((CritSuccess | Success), margin1), ((CritSuccess | Success), margin2) ->
+        | (AnySuccess, margin1), (AnySuccess, margin2) ->
             if margin1 > margin2 then success() else fail()
-        | ((CritSuccess | Success), _), _ -> success()
+        | (AnySuccess, _), _ -> success()
         | _ -> fail()
     //opposedRoll ("Bob", ("axe", 16)) ("Doomchild", ("knife parry", 11))
     //world.getLog() |> List.rev |> List.iter (printfn "%s")
@@ -412,16 +413,16 @@ module Actions =
                 if willRetreat Parry then retreat()
                 target.roundInfo <- { target.roundInfo with parries = target.roundInfo.parries + 1 }
                 match loggedAttempt target.id "parry" parry with
-                | Success | CritSuccess ->
+                | AnySuccess ->
                     true
-                | Fail | CritFail ->
+                | AnyFail ->
                     false
             else
                 if willRetreat Dodge then retreat()
                 match loggedAttempt target.id "dodge" dodge with
-                | Success | CritSuccess ->
+                | AnySuccess ->
                     true
-                | Fail | CritFail ->
+                | AnyFail ->
                     false
     let miss src target weapon =
         let with1 = match weapon.description with Some descr -> $" with {descr}" | None -> ""
@@ -430,8 +431,8 @@ module Actions =
         let src = world[src]
         if src |> checkCondition Unconscious |> not && src.current.stats.hp < 0 then
             match loggedAttempt src.id "stay conscious" src.current.stats.ht with
-            | CritSuccess | Success -> ()
-            | Fail | CritFail ->
+            | AnySuccess -> ()
+            | AnyFail ->
                 src |> addCondition Unconscious |> ignore
                 world.remember $"{src.id} falls unconscious"
         src.roundInfo <- { RoundInfo.fresh with shockPenalty = src.roundInfo.pendingShockPenalty } // don't clear shock penalty until end of turn
@@ -439,12 +440,12 @@ module Actions =
         let src = world[src]
         if src |> checkCondition MentalStun then
             match loggedAttempt src.id "recover from mental stun" src.current.stats.ht with
-            | CritSuccess | Success -> src |> removeCondition MentalStun |> ignore
-            | Fail | CritFail -> ()
+            | AnySuccess -> src |> removeCondition MentalStun |> ignore
+            | AnyFail -> ()
         if src |> checkConditionf (function PhysicalStun _ -> true | _ -> false) then
             match loggedAttempt src.id "recover from physical stun" src.current.stats.ht with
-            | CritSuccess | Success -> src |> updateStatus (List.filter (function PhysicalStun _ -> false | _ -> true)) |> ignore
-            | Fail | CritFail -> ()
+            | AnySuccess -> src |> updateStatus (List.filter (function PhysicalStun _ -> false | _ -> true)) |> ignore
+            | AnyFail -> ()
         world.remember ""
     let attack (src:string) (target:string) (deceptive: int) (location:Location option) =
         let src = world[src]
@@ -479,8 +480,14 @@ module Actions =
                 hit false src target location weapon
         | _ ->
             miss src target weapon
-
 open Actions
+
+// convenience helper functions to make declarations easier
+let armor n = function Eye -> 0 | Skull -> n+2 | _ -> n
+let largeKnife skillBonus = ReadiedWeapon.create((fun stats -> stats.dx + skillBonus), "large knife", Swing, -2, Cutting)
+let unarmedStrike skillBonus = ReadiedWeapon.create((fun stats -> stats.dx + skillBonus), "unarmed strike", Thrust, -1, Crushing)
+let duelingGlaive skillBonus = ReadiedWeapon.create((fun stats -> stats.dx + skillBonus), "dueling glaive", Swing, +2, Cutting)
+let rapier skillBonus = ReadiedWeapon.createFencingWeapon((fun stats -> stats.dx + skillBonus), "edged rapier", Swing, 0, Cutting)
 let lf _ = printfn ""
 let isActive c = c |> checkConditions [Dead; Unconscious] |> not
 let printWorld() =
@@ -529,8 +536,32 @@ let fightUntilVictory() =
     world.remember "\nFinal results:"
     printWorld()
     world.clearDeadOrUnconscious()
-let castResistSoundOnAllies (caster: Creature) = notImpl()
-let armor n = function Eye -> 0 | Skull -> n+2 | _ -> n
+let castResistSoundOnAllies (caster: Creature) =
+    match caster.current.stats.mods |> List.tryPick (function ResistSound skill -> Some skill | _ -> None) with
+    | None -> ()
+    | Some skill ->
+        let friendlies = world.getDenizens().Values |> Seq.filter (fun c -> c.current.stats.team = caster.current.stats.team)
+        let cost = if skill >= 20 then 0 elif skill >= 15 then 1 else 2
+        let rec castOn target =
+            let penalties = caster.current.concentratingOn |> List.sumBy (function { penaltyCategory = "Spells" } as c -> c.cumulativePenalty | _ -> 0)
+            let effectiveSkill = skill + penalties
+            let apply cost =
+                caster |> updateStats (fun c -> { c with fp = c.fp - cost })
+                    |> addConcentrationEffect (target, ResistingSound)
+            if caster.current.stats.fp > 0 then
+                match loggedAttempt caster.id $"cast Resist Sound on {target.id}" effectiveSkill with
+                | CritSuccess -> apply 0
+                | Success -> apply cost
+                | Fail -> apply (min 1 cost); castOn target
+                | CritFail -> apply cost; castOn target
+            else
+                // todo but low-pri: Energy Reserve, HP casting
+                world.remember $"{caster.id} cannot cast Resist Sound with only {caster.fp} available."
+        for target in friendlies do
+            castOn target
+
+// from here on out it is logic related to specific fights, not even convenience helpers.
+// This is all stuff the user would do at runtime.
 world.clearAll()
 for _ in 1..3 do
     world.add("Doomchild", team="blue", st=8, dx=18, speed = 7, readiedWeapon = largeKnife 0, mods=[Berserk 12; StrikingST +10]) |> lf
