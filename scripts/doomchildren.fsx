@@ -108,6 +108,41 @@ type Mod =
     | Concussion of skill:int
     | ResistSound of skill: int
 type DamageClass = Swing | Thrust
+
+module rec ModifiableValue =
+    type Numberish<'T when 'T: (static member (+): 'T * 'T -> 'T)
+        and  'T: (static member Zero : 'T)> = 'T
+    let inline z<'t when Numberish<'t>> (lhs: 't) (rhs: 't) =
+        printfn "%A" (lhs, rhs, lhs + rhs, 't.Zero, lhs + rhs + 't.Zero)
+        lhs + rhs + 't.Zero
+    z 2.2 3.
+    type ModifiableValue<'t when Numberish<'t>> = Raw of 't | Modifier of 't * description:string * 't ModifiableValue | ConditionalModifier of 't * description:string * predicate:(unit -> bool) * 't ModifiableValue
+        with
+        static member create n = Raw n
+        member this.modify(bonus, description) = Modifier(bonus, description, this)
+        member this.conditional(pred, bonus, description) = ConditionalModifier(bonus, description, pred, this)
+        member this.Eval = eval this
+        member this.Full = fullExplanation this
+    let rec eval (this: _ ModifiableValue) =
+        match this with
+        | Raw n -> n
+        | Modifier(bonus, _, rest) -> bonus
+        | ConditionalModifier(bonus, _, pred, rest) ->
+            if pred() then bonus
+            else eval rest
+    let inline fullExplanation<'t when Numberish<'t>> (this: 't ModifiableValue) =
+        let rec eval ((explanations, result) as accum) expr =
+            let add exp v = exp::explanations, result + v
+            match expr with
+            | Raw n -> add $"{n}" n
+            | Modifier(bonus, description, rest) -> eval (add $"%+d{bonus} ({description})" bonus) rest
+            | ConditionalModifier(bonus, description, pred, rest) ->
+                if pred() then eval (add $"%+d{bonus} ({description})" bonus) rest
+                else eval accum rest // ignore if predicate fails
+        eval ([], 't.Zero) this
+    let sk = (Raw 17).modify(+4, "Determined").modify(-6, "No legs").conditional((fun _ -> rand.Next 100 < 50), +2, "Made me laugh")
+    sk |> fullExplanation
+
 type ReadiedWeapon = {
     description: string option
     skill: CreatureStats -> int
@@ -122,7 +157,7 @@ type ReadiedWeapon = {
     static member create(skill, class1, mod1, type1) = { description = None; skill = skill; damageType = type1; damageRoll = None; damageClass = class1; damageMod = mod1; fencingWeapon = false }
     static member create(skill, descr, class1, mod1, type1) = { description = Some descr; skill = skill; damageType = type1; damageRoll = None; damageClass = class1; damageMod = mod1; fencingWeapon = false }
     static member createFencingWeapon(skill, descr, class1, mod1, type1) = { description = Some descr; skill = skill; damageType = type1; damageRoll = None; damageClass = class1; damageMod = mod1; fencingWeapon = true }
-    member this.compute (src: CreatureStats) =
+    member this.Damage (src: CreatureStats) =
         let st =
             src.st +
                 (src.mods
@@ -138,6 +173,9 @@ type ReadiedWeapon = {
             if src.mods |> List.contains WeaponMaster then
                 { roll with bonus = roll.bonus + 2 * roll.n }, this.damageType
             else roll, this.damageType
+    member this.EffectiveSkill (src: CreatureStats) =
+        this.skill
+
 and CreatureStats = {
     team: string
     st: int
@@ -159,7 +197,7 @@ and CreatureStats = {
     with
     member this.damage =
         let strikingST = match this.mods |> List.tryPick (function StrikingST v -> Some v | _ -> None) with Some v -> this.st + v | _ -> this.st
-        this.readiedWeapon.compute this
+        this.readiedWeapon.Damage this
 
 type DefenseType = Parry | Block | Dodge
 type Effect = ResistingSound | MindControlled | Haste of int | Shield of int
@@ -359,7 +397,7 @@ module Actions =
                 addPenalties()
 
     let hit isCrit src (target: Creature) location (weapon:ReadiedWeapon) =
-        let amount, type1 = weapon.compute(src.current.stats)
+        let amount, type1 = weapon.Damage(src.current.stats)
         let basicDamage = amount.throw
         let dr = target.current.stats.dr location
         let dmg = basicDamage - dr |> max 0
