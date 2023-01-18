@@ -1,6 +1,7 @@
 #I __SOURCE_DIRECTORY__
 #load "Common.fsx"
 #load "Geo.fsx"
+#load "Data.fsx"
 #r "nuget: TextCopy"
 open System
 
@@ -112,10 +113,6 @@ type DamageClass = Swing | Thrust
 module rec ModifiableValue =
     type Numberish<'T when 'T: (static member (+): 'T * 'T -> 'T)
         and  'T: (static member Zero : 'T)> = 'T
-    let inline z<'t when Numberish<'t>> (lhs: 't) (rhs: 't) =
-        printfn "%A" (lhs, rhs, lhs + rhs, 't.Zero, lhs + rhs + 't.Zero)
-        lhs + rhs + 't.Zero
-    z 2.2 3.
     type ModifiableValue<'t when Numberish<'t>> = Raw of 't | Modifier of 't * description:string * 't ModifiableValue | ConditionalModifier of 't * description:string * predicate:(unit -> bool) * 't ModifiableValue
         with
         static member create n = Raw n
