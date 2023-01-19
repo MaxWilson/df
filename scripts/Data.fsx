@@ -1,6 +1,10 @@
+#if INTERACTIVE
+#load "common.fsx"
+#else
 module Data
+#endif
 
-type Id = string
+type Id = int
 type Name = string
 [<AutoOpen>]
 module Flags =
@@ -28,11 +32,52 @@ module Flags =
     let inline createValues values =
         values |> Seq.map (fun (v, payloads) -> str v, payloads) |> Map.ofSeq |> Flags
 type RuntimeValue = Id of Id | Name of Name | Number of int | Flags of Flags
+type 't Delayed = Requires of Id * Name | Ready of 't
+
+[<AutoOpen>]
+module Property =
+    type Type<'t> = { toRuntimeValue: 't -> RuntimeValue; ofRuntimeValue: RuntimeValue -> 't }
+    type Property<'t> = { name: string; typ: Type<'t> }
+    let tId = { toRuntimeValue = RuntimeValue.Id; ofRuntimeValue = function RuntimeValue.Id id -> id | _ -> shouldntHappen() }
+    let tName = { toRuntimeValue = RuntimeValue.Name; ofRuntimeValue = function RuntimeValue.Name id -> id | _ -> shouldntHappen() }
+    let tNumber = { toRuntimeValue = RuntimeValue.Number; ofRuntimeValue = function RuntimeValue.Number n -> n | _ -> shouldntHappen() }
+    let prop typ name = { name = name; typ = typ }
+    let propId = prop tId
+    let propName = prop tName
+    let propNumber = prop tNumber
+    let pId = propId "Id"
+    let pName = propName "Name"
 
 [<AutoOpen>]
 module Scope =
     type Row = Map<Name, RuntimeValue>
-    type Scope = Map<Id, Row>
+    type Scope = Scope of Map<Id, Row>
+    let fresh: Scope = Map.empty |> Scope
+    let inline set (property: 't Property) id value (Scope impl) =
+        let value = property.typ.toRuntimeValue value
+        Scope (impl |> Map.change id (function Some row -> row |> Map.add property.name value |> Some | None -> Map.ofList [property.name, value] |> Some))
+    let inline read id (property: 't Property) (Scope impl) =
+        let propertyName = property.name
+        match impl |> Map.tryFind id with
+        | None -> Requires(id, propertyName)
+        | Some row ->
+            match row |> Map.tryFind propertyName with
+            | None -> Requires(id, propertyName)
+            | Some v -> Ready(v) // todo: allow defaults
+    let inline change (property: 't Property) id f (Scope impl) =
+        Scope (impl |> Map.change id (function Some row -> row |> Map.change property.name f |> Some | None -> Map.empty |> Map.change property.name f |> Some))
+    let add name (Scope impl as scope) =
+        let id = impl.Count + 1
+        id, scope |> set pName id name |> set pId id id
+
+let pLevel = propNumber "Level"
+let bob, scope = Scope.fresh |> add "Bob"
+let scope = scope |> set pLevel bob 20 |> set pLevel bob 23
+scope |> read bob pLevel
+
+
+
+
 
 type Weapon = Rapier | Dagger | Bow | Greatsword
 type Trait = Lucky | WeaponMaster of Weapon | HardToKill of int
