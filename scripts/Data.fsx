@@ -71,10 +71,12 @@ module Scope =
         id, scope |> set pName id name |> set pId id id
 
 let pLevel = propNumber "Level"
-let bob, scope = Scope.fresh |> add "Bob"
-let scope = scope |> set pLevel bob 20 |> set pLevel bob 23
+let bob, scope = 
+    Scope.fresh |> add "Bob" |>
+    fun (bob, scope) ->
+        bob, scope |> set pLevel bob 20 |> set pLevel bob 23
 scope |> read bob pLevel
-
+scope |> read 3 pLevel
 
 
 
