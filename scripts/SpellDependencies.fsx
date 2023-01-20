@@ -194,7 +194,7 @@ let spells = [
     { name = "Bright Vision"
       college = "L&D"
       prereqs = [{ heading = Wizardly
-                   items = [["Keen Vision or 5 L&D spells"]] }]
+                   items = [["Keen Vision"]; ["5 L&D spells"]] }]
       page = 46 }
     { name = "Burning Touch"
       college = "Fire"
@@ -284,7 +284,7 @@ let spells = [
     { name = "Control Person"
       college = "C&E"
       prereqs = [{ heading = Wizardly
-                   items = [["Soul Rider or Telepathy"]] }]
+                   items = [["Soul Rider"]; ["Telepathy"]] }]
       page = 24 }
     { name = "Cook"
       college = "Food"
@@ -327,7 +327,7 @@ let spells = [
     { name = "Create Fire"
       college = "Fire"
       prereqs = [{ heading = Wizardly
-                   items = [["Ignite Fire or Seek Fire"]] }]
+                   items = [["Ignite Fire"]; ["Seek Fire"]] }]
       page = 29 }
     { name = "Create Food"
       college = "Food"
@@ -360,7 +360,7 @@ let spells = [
     { name = "Dark Vision"
       college = "L&D"
       prereqs = [{ heading = Wizardly
-                   items = [["Infravision or Night Vision"]] }]
+                   items = [["Infravision"]; ["Night Vision"]] }]
       page = 46 }
     { name = "Darkness"
       college = "L&D"
@@ -693,7 +693,7 @@ let spells = [
     { name = "Glass Wall"
       college = "Know."
       prereqs = [{ heading = Wizardly
-                   items = [["5 Knowledge spells or Earth Vision"]] }]
+                   items = [["5 Knowledge spells"]; ["Earth Vision"]] }]
       page = 43 }
     { name = "Glow"
       college = "L&D"
@@ -752,7 +752,7 @@ let spells = [
       prereqs =
        [{ heading = Druidic
           items = [["PI1"]] }; { heading = Wizardly
-                                 items = [["Keen Vision or 5 L&D spells"]] }]
+                                 items = [["Keen Vision"]; ["5 L&D spells"]] }]
       page = 47 }
     { name = "Healing Slumber"
       college = "Healing"
@@ -767,7 +767,7 @@ let spells = [
     { name = "Hide"
       college = "L&D"
       prereqs = [{ heading = Wizardly
-                   items = [["Blur or Forgetfulness"]] }]
+                   items = [["Blur"]; ["Forgetfulness"]] }]
       page = 47 }
     { name = "Hide Emotion"
       college = "C&E"
@@ -784,12 +784,12 @@ let spells = [
       prereqs =
        [{ heading = Clerical
           items = [["PI2"]] }; { heading = Wizardly
-                                 items = [["Truthsayer or Hide Emotion"]] }]
+                                 items = [["Truthsayer"]; ["Hide Emotion"]] }]
       page = 25 }
     { name = "Hinder"
       college = "Body/Move."
       prereqs = [{ heading = Wizardly
-                   items = [["Clumsiness or Haste"]] }]
+                   items = [["Clumsiness"]; ["Haste"]] }]
       page = 21 }
     { name = "History"
       college = "Know."
@@ -814,7 +814,7 @@ let spells = [
     { name = "Ice Dagger"
       college = "Water"
       prereqs = [{ heading = Wizardly
-                   items = [["Ice Sphere or Water Jet"]] }]
+                   items = [["Ice Sphere"]; ["Water Jet"]] }]
       page = 69 }
     { name = "Ice Sphere"
       college = "Water"
@@ -864,7 +864,7 @@ let spells = [
     { name = "Infravision"
       college = "L&D"
       prereqs = [{ heading = Wizardly
-                   items = [["Keen Vision or 5 L&D spells"]] }]
+                   items = [["Keen Vision"]; ["5 L&D spells"]] }]
       page = 47 }
     { name = "Initiative"
       college = "Illusion"
@@ -987,7 +987,7 @@ let spells = [
     { name = "Lockmaster"
       college = "Move."
       prereqs = [{ heading = Wizardly
-                   items = [["Either M2"; "Apportation or Locksmith"]] }]
+                   items = [["M2"; "Apportation"]; ["M2"; "Locksmith"]] }]
       page = 58 }
     { name = "Locksmith"
       college = "Move."
@@ -1071,7 +1071,7 @@ let spells = [
     { name = "Mind-Reading"
       college = "C&E"
       prereqs = [{ heading = Wizardly
-                   items = [["Truthsayer or Borrow Language"]] }]
+                   items = [["Truthsayer"]; ["Borrow Language"]] }]
       page = 25 }
     { name = "Mind-Search"
       college = "C&E"
@@ -1096,7 +1096,7 @@ let spells = [
     { name = "Missile Shield"
       college = "P&W"
       prereqs = [{ heading = Wizardly
-                   items = [["Apportation or Shield"]] }]
+                   items = [["Apportation"]; ["Shield"]] }]
       page = 64 }
     { name = "Monk’s Banquet"
       college = "Food"
@@ -1107,7 +1107,7 @@ let spells = [
       college = "P&W"
       prereqs = [{ heading = Druidic
                    items = [["PI2"]] }; { heading = Wizardly
-                                          items = [["M1"; "Watchdog or Shield"]] }]
+                                          items = [["M1"; "Watchdog"]; ["Shield"]] }]
       page = 64 }
     { name = "Nauseate"
       college = "Body"
@@ -1123,7 +1123,7 @@ let spells = [
     { name = "Night Vision"
       college = "L&D"
       prereqs = [{ heading = Wizardly
-                   items = [["Keen Vision or 5 L&D spells"]] }]
+                   items = [["Keen Vision"]; ["5 L&D spells"]] }]
       page = 47 }
     { name = "Nightingale"
       college = "P&W"
@@ -1428,7 +1428,7 @@ let spells = [
     { name = "Restore"
       college = "M&B"
       prereqs = [{ heading = Wizardly
-                   items = [["Find Weakness or Simple Illusion"]] }]
+                   items = [["Find Weakness"]; ["Simple Illusion"]] }]
       page = 49 }
     { name = "Restore Hearing"
       college = "Healing"
@@ -1770,7 +1770,7 @@ let spells = [
     { name = "Stone to Earth"
       college = "Earth"
       prereqs = [{ heading = Wizardly
-                   items = [["Earth to Stone or 4 Earth spells"]] }]
+                   items = [["Earth to Stone"]; ["4 Earth spells"]] }]
       page = 28 }
     { name = "Stone to Flesh"
       college = "Earth"
@@ -1949,7 +1949,7 @@ let spells = [
           items = [["PI1"]] }; { heading = Druidic
                                  items = [["PI1"]] };
         { heading = Wizardly
-          items = [["Shape Water or Shield"]] }]
+          items = [["Shape Water"]; ["Shield"]] }]
       page = 70 }
     { name = "Undo"
       college = "Move."
@@ -1965,7 +1965,7 @@ let spells = [
       college = "Body"
       prereqs = [{ heading = Clerical
                    items = [["PI1"]] }; { heading = Wizardly
-                                          items = [["Frailty or Might"]] }]
+                                          items = [["Frailty"]; ["Might"]] }]
       page = 23 }
     { name = "Voices"
       college = "Sound"
@@ -2084,6 +2084,17 @@ let spells = [
       prereqs = [{ heading = Wizardly
                    items = [["Apportation"; "Keen Vision"]] }]
       page = 45 }
-      ]
+  ]
 
-spells |> List.map(fun s -> s.college) |> List.distinct |> List.sort
+#r "nuget: TextCopy"
+module String =
+    let join (sep: string) (input: string seq) = System.String.Join(sep, input)
+let expandOr (prereq:Prereq) =
+    {   heading = prereq.heading
+        items =
+            match prereq.items with
+                | [[txt]] when txt.Contains(" or ") ->
+                    txt.Split(" or ") |> Seq.map (fun item -> [item]) |> List.ofSeq
+                | otherwise -> otherwise
+        }
+spells |> List.map (fun spell -> { spell with prereqs = spell.prereqs |> List.map expandOr }) |> List.map (sprintf "    %A") |> String.join "\n" |> TextCopy.Clipboard().SetText
